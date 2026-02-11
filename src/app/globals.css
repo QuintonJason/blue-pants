@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 220 20% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 10%;
+
+    --primary: 250 84% 54%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 20% 20%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 10% 46%;
+
+    --accent: 250 84% 96%;
+    --accent-foreground: 250 84% 40%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 250 84% 54%;
+
+    --radius: 0.625rem;
+
+    /* Highlight colors */
+    --highlight-question: 210 100% 95%;
+    --highlight-error: 25 100% 95%;
+    --highlight-warning: 0 100% 96%;
+  }
+
+  .dark {
+    --background: 220 20% 8%;
+    --foreground: 220 10% 98%;
+
+    --card: 220 20% 12%;
+    --card-foreground: 220 10% 98%;
+
+    --popover: 220 20% 12%;
+    --popover-foreground: 220 10% 98%;
+
+    --primary: 250 84% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 16%;
+    --secondary-foreground: 220 10% 90%;
+
+    --muted: 220 14% 16%;
+    --muted-foreground: 220 10% 64%;
+
+    --accent: 250 60% 20%;
+    --accent-foreground: 250 84% 80%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 20%;
+    --input: 220 13% 20%;
+    --ring: 250 84% 60%;
+
+    /* Highlight colors - dark mode */
+    --highlight-question: 210 60% 20%;
+    --highlight-error: 25 60% 20%;
+    --highlight-warning: 0 60% 18%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-muted/50;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/20 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/30;
+}
+
+/* Code block styling */
+pre {
+  @apply rounded-lg bg-muted p-4 overflow-x-auto text-sm;
+}
+
+code {
+  @apply font-mono text-sm;
+}
+
+/* Chat message styling */
+.chat-message {
+  @apply p-4 rounded-lg;
+}
+
+.chat-message.user {
+  @apply bg-primary/10 border border-primary/20;
+}
+
+.chat-message.assistant {
+  @apply bg-card border border-border;
+}
+
+/* Highlight classes */
+.highlight-question {
+  @apply bg-highlight-question border-l-4 border-blue-500;
+}
+
+.highlight-error {
+  @apply bg-highlight-error border-l-4 border-orange-500;
+}
+
+.highlight-warning {
+  @apply bg-highlight-warning border-l-4 border-red-400;
+}
