@@ -53,6 +53,7 @@ describe('rescoreStoredSubmission', () => {
     expect(Object.keys(update).sort()).toEqual([
       'aiCodeSnippets',
       'computedMetrics',
+      'rubricSnapshot',
       'suggestedDimensionScores',
       'suggestedScore',
     ])
@@ -84,6 +85,17 @@ describe('rescoreStoredSubmission', () => {
 
   it('rejects unparseable stored transcripts', () => {
     expect(() => rescoreStoredSubmission('not json', null, DEFAULT_RUBRIC_CONFIG)).toThrow()
+  })
+
+  it('records the rubric it scored against', () => {
+    const update = rescoreStoredSubmission(stored, AI_CODE, DEFAULT_RUBRIC_CONFIG)
+    expect(JSON.parse(update.rubricSnapshot)).toEqual(DEFAULT_RUBRIC_CONFIG)
+  })
+
+  it('records a non-default rubric faithfully', () => {
+    const custom = { ...DEFAULT_RUBRIC_CONFIG, debuggingProcess: 40, independenceShown: 5 }
+    const update = rescoreStoredSubmission(stored, AI_CODE, custom)
+    expect(JSON.parse(update.rubricSnapshot)).toEqual(custom)
   })
 
   it('is idempotent', () => {

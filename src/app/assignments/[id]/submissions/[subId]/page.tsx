@@ -29,6 +29,7 @@ import {
   RotateCcw
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { parseRubricSnapshot, rubricsMatch } from '@/lib/scorer/rubric'
 import type { Submission, Assignment, ComputedMetrics, DimensionScores, RubricConfig } from '@/lib/db/schema'
 import type { ParsedChat, CodeBlock } from '@/lib/parser/chatgpt'
 import {
@@ -205,6 +206,12 @@ export default function SubmissionReviewPage() {
   }
 
   const rubricConfig: RubricConfig = JSON.parse(assignment.rubricConfig)
+
+  // The suggested score was computed under whatever rubric was in force at the
+  // time. If the assignment's weights have changed since, the stored score no
+  // longer matches the weights shown beside it.
+  const scoredUnder = parseRubricSnapshot(submission.rubricSnapshot)
+  const rubricChanged = !rubricsMatch(scoredUnder, rubricConfig)
   const allAiCode = submission.parsedAiCode.map(b => b.code).join('\n\n')
 
   return (
@@ -454,6 +461,26 @@ export default function SubmissionReviewPage() {
               </CardContent>
             </Card>
 
+            {rubricChanged && submission.suggestedScore !== null && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="font-medium">
+                      {scoredUnder
+                        ? "Suggested under a different rubric"
+                        : "Rubric used for this suggestion is unknown"}
+                    </p>
+                    <p>
+                      {scoredUnder
+                        ? "The assignment's weights have changed since this was scored, so the suggestion below does not reflect the weights now shown."
+                        : "This submission was scored before the rubric was recorded, so its suggestion cannot be checked against the current weights."}{' '}
+                      Use Recompute to score it under the current rubric.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             <ScoringPanel
               suggestedScore={submission.suggestedScore}
               suggestedDimensionScores={submission.parsedSuggestedDimensionScores}

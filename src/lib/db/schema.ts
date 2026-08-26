@@ -58,9 +58,14 @@ export const submissions = sqliteTable('submissions', {
   selfReflection: text('self_reflection'),
 
   // Per-dimension scores as suggested by the scorer (JSON, derived — a rescore
-  // recomputes this). Declared last: SQLite can only append columns, so
+  // recomputes this). Declared late: SQLite can only append columns, so
   // drizzle-kit push rebuilds the whole table if a new one appears mid-definition.
   suggestedDimensionScores: text('suggested_dimension_scores'),
+
+  // The rubric weights the suggested score was computed with (JSON). Assignment
+  // rubrics are editable, so without this a stored score cannot be explained: the
+  // report would show old scores beside new weights with no way to tell.
+  rubricSnapshot: text('rubric_snapshot'),
 })
 
 // Types for TypeScript

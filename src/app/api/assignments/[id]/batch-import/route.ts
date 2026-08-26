@@ -109,6 +109,7 @@ export async function POST(
           computedMetrics: JSON.stringify(scored.metrics),
           suggestedScore: scored.suggestedScore,
           suggestedDimensionScores: JSON.stringify(scored.dimensionScores),
+          rubricSnapshot: JSON.stringify(rubricConfig),
         }).returning()
 
         results.push({

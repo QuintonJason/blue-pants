@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   validateRubricConfig,
   calculateTotalScore,
+  parseRubricSnapshot,
+  rubricsMatch,
   DEFAULT_RUBRIC_CONFIG,
 } from './rubric'
 import type { DimensionScores, RubricConfig } from '../db/schema'
@@ -97,5 +99,35 @@ describe('calculateTotalScore', () => {
     }
     const scores = { ...evenScores, independenceShown: 90 }
     expect(calculateTotalScore(scores, onlyIndependence)).toBe(90)
+  })
+})
+
+describe('rubricsMatch', () => {
+  it('is true for identical weights', () => {
+    expect(rubricsMatch(DEFAULT_RUBRIC_CONFIG, { ...DEFAULT_RUBRIC_CONFIG })).toBe(true)
+  })
+
+  it('is false when any weight differs', () => {
+    expect(
+      rubricsMatch(DEFAULT_RUBRIC_CONFIG, { ...DEFAULT_RUBRIC_CONFIG, debuggingProcess: 30 })
+    ).toBe(false)
+  })
+
+  it('treats a missing snapshot as not matching', () => {
+    // Submissions imported before snapshots existed are unknown, not equal.
+    expect(rubricsMatch(null, DEFAULT_RUBRIC_CONFIG)).toBe(false)
+    expect(rubricsMatch(DEFAULT_RUBRIC_CONFIG, null)).toBe(false)
+  })
+})
+
+describe('parseRubricSnapshot', () => {
+  it('round-trips a stored snapshot', () => {
+    expect(parseRubricSnapshot(JSON.stringify(DEFAULT_RUBRIC_CONFIG))).toEqual(DEFAULT_RUBRIC_CONFIG)
+  })
+
+  it('returns null for absent, malformed, or invalid snapshots', () => {
+    for (const bad of [null, undefined, '', 'not json', '{"problemArticulation":20}', JSON.stringify({ ...DEFAULT_RUBRIC_CONFIG, iterationQuality: -1 })]) {
+      expect(parseRubricSnapshot(bad as string)).toBe(null)
+    }
   })
 })

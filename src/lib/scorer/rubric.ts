@@ -69,6 +69,35 @@ export function validateRubricConfig(input: unknown): RubricValidation {
 }
 
 /**
+ * Whether two rubrics would weight a submission differently.
+ *
+ * Assignment rubrics are editable after grading, so a stored suggested score can
+ * silently stop matching the weights shown next to it. Comparing the snapshot the
+ * score was computed with against the assignment's current rubric is what makes
+ * that visible.
+ */
+export function rubricsMatch(a: RubricConfig | null, b: RubricConfig | null): boolean {
+  if (!a || !b) return false
+  return RUBRIC_DIMENSIONS.every(dimension => a[dimension] === b[dimension])
+}
+
+/**
+ * Parse a stored rubric snapshot, returning null if it is absent or unusable.
+ *
+ * Submissions imported before snapshots were recorded have none, which reads as
+ * "unknown" rather than "matching".
+ */
+export function parseRubricSnapshot(stored: string | null | undefined): RubricConfig | null {
+  if (!stored) return null
+  try {
+    const validated = validateRubricConfig(JSON.parse(stored))
+    return validated.ok ? validated.value : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Scoring context - all the data needed to compute scores
  */
 export interface ScoringContext {

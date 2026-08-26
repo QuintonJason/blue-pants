@@ -68,6 +68,8 @@ export interface RescoreUpdate {
   suggestedDimensionScores: string
   suggestedScore: number
   aiCodeSnippets: string
+  /** The rubric this score was computed with, so it stays explainable later. */
+  rubricSnapshot: string
 }
 
 /**
@@ -94,5 +96,6 @@ export function rescoreStoredSubmission(
     suggestedDimensionScores: JSON.stringify(scored.dimensionScores),
     suggestedScore: scored.suggestedScore,
     aiCodeSnippets: JSON.stringify(scored.aiCodeSnippets),
+    rubricSnapshot: JSON.stringify(rubricConfig),
   }
 }

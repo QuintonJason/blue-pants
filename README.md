@@ -32,6 +32,11 @@ A rescore only replaces derived values: the suggested score, the metrics behind 
 and the suggested per-dimension scores. A grade you entered by hand, your dimension
 sliders, your notes, and the student's reflection are never touched.
 
+Each suggestion records the rubric it was computed with. Assignment rubrics stay
+editable, so if the weights change afterwards the submission page and the report
+both say so and point at Recompute — a stored score is never shown as though it came
+from weights it never saw.
+
 It cannot undo import-time parsing, though. Transcripts are stored already parsed,
 so a submission imported before a parser fix keeps whatever the old parser produced
 — re-import the original export to pick that up.
