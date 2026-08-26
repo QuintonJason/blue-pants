@@ -25,7 +25,8 @@ import {
   Eye,
   PenLine,
   Check,
-  Loader2
+  Loader2,
+  RotateCcw
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import type { Submission, Assignment, ComputedMetrics, DimensionScores, RubricConfig } from '@/lib/db/schema'
@@ -44,6 +45,7 @@ interface SubmissionData extends Submission {
   parsedChats: ParsedChat[]
   parsedMetrics: ComputedMetrics
   parsedDimensionScores: DimensionScores | null
+  parsedSuggestedDimensionScores: DimensionScores | null
   parsedAiCode: CodeBlock[]
 }
 
@@ -61,6 +63,8 @@ export default function SubmissionReviewPage() {
   const [error, setError] = useState('')
   const [reflection, setReflection] = useState('')
   const [savingReflection, setSavingReflection] = useState(false)
+  const [rescoring, setRescoring] = useState(false)
+  const [rescoreNote, setRescoreNote] = useState('')
   const [reflectionSaved, setReflectionSaved] = useState(false)
 
   useEffect(() => {
@@ -73,6 +77,9 @@ export default function SubmissionReviewPage() {
         const parsedChats = JSON.parse(sub.chatExports || '[]')
         const parsedMetrics = JSON.parse(sub.computedMetrics || '{}')
         const parsedDimensionScores = sub.dimensionScores ? JSON.parse(sub.dimensionScores) : null
+        const parsedSuggestedDimensionScores = sub.suggestedDimensionScores
+          ? JSON.parse(sub.suggestedDimensionScores)
+          : null
         const parsedAiCode = JSON.parse(sub.aiCodeSnippets || '[]')
 
         setSubmission({
@@ -80,6 +87,7 @@ export default function SubmissionReviewPage() {
           parsedChats,
           parsedMetrics,
           parsedDimensionScores,
+          parsedSuggestedDimensionScores,
           parsedAiCode,
         })
         setReflection(sub.selfReflection || '')
@@ -91,6 +99,40 @@ export default function SubmissionReviewPage() {
         setLoading(false)
       })
   }, [submissionId, assignmentId])
+
+  const handleRescore = async () => {
+    setRescoring(true)
+    setRescoreNote('')
+    try {
+      const res = await fetch(`/api/submissions/${submissionId}/rescore`, { method: 'POST' })
+      const body = await res.json()
+      if (!res.ok) {
+        setError(body.error || 'Failed to recompute the suggested score')
+        return
+      }
+
+      const sub = body.submission
+      setSubmission({
+        ...sub,
+        parsedChats: JSON.parse(sub.chatExports || '[]'),
+        parsedMetrics: JSON.parse(sub.computedMetrics || '{}'),
+        parsedDimensionScores: sub.dimensionScores ? JSON.parse(sub.dimensionScores) : null,
+        parsedSuggestedDimensionScores: sub.suggestedDimensionScores
+          ? JSON.parse(sub.suggestedDimensionScores)
+          : null,
+        parsedAiCode: JSON.parse(sub.aiCodeSnippets || '[]'),
+      })
+      setRescoreNote(
+        body.previousSuggestedScore === body.suggestedScore
+          ? `Unchanged at ${body.suggestedScore}%`
+          : `Suggested score ${body.previousSuggestedScore ?? '—'}% → ${body.suggestedScore}%`
+      )
+    } catch {
+      setError('Failed to recompute the suggested score')
+    } finally {
+      setRescoring(false)
+    }
+  }
 
   const handleSave = async (data: { finalScore: number; dimensionScores: DimensionScores; teacherNotes: string }) => {
     const res = await fetch(`/api/submissions/${submissionId}`, {
@@ -191,7 +233,24 @@ export default function SubmissionReviewPage() {
                 </p>
               </div>
             </div>
-            <Dialog>
+            <div className="flex items-center gap-3">
+              {rescoreNote && (
+                <span className="text-sm text-muted-foreground">{rescoreNote}</span>
+              )}
+              <Button
+                variant="outline"
+                onClick={handleRescore}
+                disabled={rescoring}
+                title="Recompute the suggested score from this submission's stored transcript. Your saved grade and notes are not changed."
+              >
+                {rescoring ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                )}
+                {rescoring ? 'Recomputing...' : 'Recompute'}
+              </Button>
+              <Dialog>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
                   <Trash2 className="w-4 h-4 mr-2" />
@@ -216,6 +275,7 @@ export default function SubmissionReviewPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            </div>
           </div>
         </div>
       </header>
@@ -396,7 +456,7 @@ export default function SubmissionReviewPage() {
 
             <ScoringPanel
               suggestedScore={submission.suggestedScore}
-              suggestedDimensionScores={submission.parsedDimensionScores}
+              suggestedDimensionScores={submission.parsedSuggestedDimensionScores}
               currentScore={submission.finalScore}
               currentDimensionScores={submission.parsedDimensionScores}
               rubricConfig={rubricConfig}

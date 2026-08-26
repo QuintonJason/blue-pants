@@ -6,6 +6,7 @@ import { eq, desc } from 'drizzle-orm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { RescoreAllButton } from '@/components/rescore-all-button'
 import { Separator } from '@/components/ui/separator'
 import {
   ArrowLeft,
@@ -175,6 +176,10 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
                   <CardDescription>Student submissions for this assignment</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
+                  <RescoreAllButton
+                    assignmentId={assignmentId}
+                    submissionCount={assignment.submissions.length}
+                  />
                   <Link href={`/assignments/${assignmentId}/batch-import`}>
                     <Button size="sm" variant="outline">
                       <Upload className="w-4 h-4 mr-2" />

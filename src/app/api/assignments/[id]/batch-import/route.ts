@@ -3,10 +3,8 @@ import { db } from '@/lib/db'
 import { submissions, assignments } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { smartParse } from '@/lib/parser/chatgpt'
-import { computeAggregateMetrics } from '@/lib/analyzer/metrics'
-import { highlightChat, getHighlightSummary } from '@/lib/analyzer/highlighter'
-import { getCodeSummary, analyzeModifications } from '@/lib/analyzer/code-extractor'
-import { calculateScores, DEFAULT_RUBRIC_CONFIG } from '@/lib/scorer/rubric'
+import { DEFAULT_RUBRIC_CONFIG } from '@/lib/scorer/rubric'
+import { scoreSubmission } from '@/lib/scorer/pipeline'
 import type { RubricConfig } from '@/lib/db/schema'
 
 interface SubmissionInput {
@@ -98,30 +96,7 @@ export async function POST(
           throw new Error('Could not parse any chat exports')
         }
 
-        // Compute metrics
-        const metrics = computeAggregateMetrics(parsedChats)
-
-        // Get highlights summary
-        const allHighlights = parsedChats.flatMap(chat => highlightChat(chat))
-        const highlightSummary = getHighlightSummary(allHighlights)
-
-        // Extract AI code
-        const codeSummaries = parsedChats.map(chat => getCodeSummary(chat))
-        const allAiCode = codeSummaries.map(s => s.allCode).join('\n\n')
-
-        // Analyze code modifications if final code provided
-        let codeModification = undefined
-        if (finalCode && allAiCode) {
-          codeModification = analyzeModifications(allAiCode, finalCode)
-        }
-
-        // Calculate scores
-        const { dimensionScores, totalScore } = calculateScores({
-          metrics,
-          highlights: highlightSummary,
-          codeModification,
-          rubricConfig,
-        })
+        const scored = scoreSubmission(parsedChats, finalCode, rubricConfig)
 
         // Insert submission
         const result = await db.insert(submissions).values({
@@ -130,10 +105,10 @@ export async function POST(
           submittedAt: new Date().toISOString(),
           chatExports: JSON.stringify(parsedChats),
           finalCode: finalCode || null,
-          aiCodeSnippets: JSON.stringify(codeSummaries.flatMap(s => s.codeBlocks)),
-          computedMetrics: JSON.stringify(metrics),
-          suggestedScore: totalScore,
-          dimensionScores: JSON.stringify(dimensionScores),
+          aiCodeSnippets: JSON.stringify(scored.aiCodeSnippets),
+          computedMetrics: JSON.stringify(scored.metrics),
+          suggestedScore: scored.suggestedScore,
+          suggestedDimensionScores: JSON.stringify(scored.dimensionScores),
         }).returning()
 
         results.push({

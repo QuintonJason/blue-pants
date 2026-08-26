@@ -4,7 +4,7 @@ import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core'
 export const teachers = sqliteTable('teachers', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   passwordHash: text('password_hash').notNull(),
-  createdAt: text('created_at').notNull().default(new Date().toISOString()),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 })
 
 // Assignments
@@ -12,7 +12,7 @@ export const assignments = sqliteTable('assignments', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
   description: text('description'),
-  createdAt: text('created_at').notNull().default(new Date().toISOString()),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   // Rubric weights stored as JSON
   rubricConfig: text('rubric_config').notNull().default(JSON.stringify({
     problemArticulation: 20,
@@ -29,7 +29,7 @@ export const submissions = sqliteTable('submissions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   assignmentId: integer('assignment_id').notNull().references(() => assignments.id, { onDelete: 'cascade' }),
   studentName: text('student_name').notNull(),
-  submittedAt: text('submitted_at').notNull().default(new Date().toISOString()),
+  submittedAt: text('submitted_at').notNull().$defaultFn(() => new Date().toISOString()),
 
   // Chat data
   chatExports: text('chat_exports').notNull(), // JSON array of parsed chats
@@ -47,7 +47,8 @@ export const submissions = sqliteTable('submissions', {
   suggestedScore: real('suggested_score'),
   finalScore: real('final_score'),
 
-  // Per-dimension scores (JSON)
+  // Per-dimension scores as adjusted by the teacher (JSON). Null until they save.
+  // Kept separate from the suggestion so recomputing cannot overwrite their work.
   dimensionScores: text('dimension_scores'),
 
   // Teacher notes
@@ -55,6 +56,11 @@ export const submissions = sqliteTable('submissions', {
 
   // Student self-reflection
   selfReflection: text('self_reflection'),
+
+  // Per-dimension scores as suggested by the scorer (JSON, derived — a rescore
+  // recomputes this). Declared last: SQLite can only append columns, so
+  // drizzle-kit push rebuilds the whole table if a new one appears mid-definition.
+  suggestedDimensionScores: text('suggested_dimension_scores'),
 })
 
 // Types for TypeScript

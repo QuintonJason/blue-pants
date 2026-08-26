@@ -22,6 +22,20 @@ Instead of asking "did they use AI?" we ask "how well did they use AI?"
 - **Suggested Scoring**: Algorithm calculates preliminary grades
 - **PDF Reports**: Export assignment summaries
 
+## Rescoring
+
+Suggested scores are computed once, at import. When the scoring logic changes, use
+**Recompute** on a submission or **Rescore all** on an assignment to recompute from
+the transcripts already stored.
+
+A rescore only replaces derived values: the suggested score, the metrics behind it,
+and the suggested per-dimension scores. A grade you entered by hand, your dimension
+sliders, your notes, and the student's reflection are never touched.
+
+It cannot undo import-time parsing, though. Transcripts are stored already parsed,
+so a submission imported before a parser fix keeps whatever the old parser produced
+— re-import the original export to pick that up.
+
 ## Rubric Dimensions
 
 | Dimension | Good Signals | Red Flags |
