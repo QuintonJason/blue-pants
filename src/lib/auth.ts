@@ -3,10 +3,14 @@ import { db } from './db'
 import { teachers } from './db/schema'
 import { eq } from 'drizzle-orm'
 import { cookies } from 'next/headers'
+import {
+  SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_SECONDS,
+  createSessionToken,
+  verifySessionToken,
+} from './session'
 
 const SALT_ROUNDS = 10
-const SESSION_COOKIE_NAME = 'transcript_session'
-const SESSION_SECRET = process.env.SESSION_SECRET || 'transcript-local-secret-key'
 
 // Hash a password
 export async function hashPassword(password: string): Promise<string> {
@@ -48,43 +52,15 @@ export async function verifyLogin(password: string): Promise<boolean> {
   return verifyPassword(password, result[0].passwordHash)
 }
 
-// Create a simple session token
-function createSessionToken(): string {
-  const timestamp = Date.now()
-  const random = Math.random().toString(36).substring(2)
-  return Buffer.from(`${timestamp}:${random}:${SESSION_SECRET}`).toString('base64')
-}
-
-// Verify session token
-function verifySessionToken(token: string): boolean {
-  try {
-    const decoded = Buffer.from(token, 'base64').toString('utf-8')
-    const parts = decoded.split(':')
-    if (parts.length !== 3) return false
-
-    const [timestamp, , secret] = parts
-    if (secret !== SESSION_SECRET) return false
-
-    // Session expires after 24 hours
-    const tokenTime = parseInt(timestamp, 10)
-    const now = Date.now()
-    const twentyFourHours = 24 * 60 * 60 * 1000
-
-    return (now - tokenTime) < twentyFourHours
-  } catch {
-    return false
-  }
-}
-
 // Set session cookie
 export async function setSessionCookie(): Promise<void> {
-  const token = createSessionToken()
+  const token = await createSessionToken()
   const cookieStore = await cookies()
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24, // 24 hours
+    maxAge: SESSION_MAX_AGE_SECONDS,
     path: '/',
   })
 }

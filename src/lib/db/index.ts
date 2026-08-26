@@ -13,39 +13,9 @@ if (!fs.existsSync(dataDir)) {
 const sqlite = new Database(path.join(dataDir, 'transcript.db'))
 export const db = drizzle(sqlite, { schema })
 
-// Initialize database with tables
-export function initializeDatabase() {
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS teachers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      password_hash TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS assignments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      description TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      rubric_config TEXT NOT NULL DEFAULT '{"problemArticulation":20,"iterationQuality":20,"criticalEvaluation":20,"codeReviewEngagement":20,"debuggingProcess":10,"independenceShown":10}'
-    );
-
-    CREATE TABLE IF NOT EXISTS submissions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
-      student_name TEXT NOT NULL,
-      submitted_at TEXT NOT NULL DEFAULT (datetime('now')),
-      chat_exports TEXT NOT NULL,
-      final_code TEXT,
-      ai_code_snippets TEXT,
-      computed_metrics TEXT,
-      suggested_score REAL,
-      final_score REAL,
-      dimension_scores TEXT,
-      teacher_notes TEXT
-    );
-  `)
-}
+// Schema lives in schema.ts and is applied by `drizzle-kit push`, which `npm run
+// dev` runs first. Hand-written CREATE TABLE statements used to live here too and
+// drifted out of sync with schema.ts, so there is deliberately no DDL in this file.
 
 // Export schema for use elsewhere
 export { schema }

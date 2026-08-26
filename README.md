@@ -46,16 +46,20 @@ Instead of asking "did they use AI?" we ask "how well did they use AI?"
 # Install dependencies
 npm install
 
-# Initialize the database
-npm run db:push
+# Set a session signing secret (required — the app will not authenticate without it)
+cp .env.example .env.local
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"   # paste into .env.local
 
-# Start the development server
+# Start the development server (syncs the database schema first)
 npm run dev
 ```
 
+`npm run dev` runs `drizzle-kit push` beforehand, so `src/lib/db/schema.ts` is the
+single source of truth for the database schema. Run `npm test` for the test suite.
+
 ### First Run
 
-1. Open http://localhost:3000
+1. Open http://localhost:3200
 2. Set up your password on first visit
 3. Create your first assignment
 4. Start reviewing submissions!

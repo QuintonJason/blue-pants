@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { db, initializeDatabase } from '@/lib/db'
+import { db } from '@/lib/db'
 import { assignments, submissions } from '@/lib/db/schema'
 import { desc, eq } from 'drizzle-orm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,8 +16,6 @@ import {
 } from 'lucide-react'
 
 async function getStats() {
-  initializeDatabase()
-
   const allAssignments = await db.select().from(assignments).orderBy(desc(assignments.createdAt))
   const allSubmissions = await db.select().from(submissions)
 

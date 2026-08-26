@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
-import { db, initializeDatabase } from '@/lib/db'
+import { db } from '@/lib/db'
 import { assignments, submissions } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { validateRubricConfig } from '@/lib/scorer/rubric'
 
 // GET - Get single assignment with submission count
 export async function GET(
@@ -9,7 +10,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    initializeDatabase()
     const { id } = await params
     const assignmentId = parseInt(id, 10)
 
@@ -58,7 +58,6 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    initializeDatabase()
     const { id } = await params
     const assignmentId = parseInt(id, 10)
 
@@ -73,9 +72,23 @@ export async function PUT(
     const { name, description, rubricConfig } = body
 
     const updateData: Record<string, unknown> = {}
-    if (name !== undefined) updateData.name = name.trim()
+    if (name !== undefined) {
+      if (typeof name !== 'string' || name.trim().length === 0) {
+        return NextResponse.json(
+          { error: 'Assignment name must be a non-empty string' },
+          { status: 400 }
+        )
+      }
+      updateData.name = name.trim()
+    }
     if (description !== undefined) updateData.description = description?.trim() || null
-    if (rubricConfig !== undefined) updateData.rubricConfig = JSON.stringify(rubricConfig)
+    if (rubricConfig !== undefined) {
+      const validated = validateRubricConfig(rubricConfig)
+      if (!validated.ok) {
+        return NextResponse.json({ error: validated.error }, { status: 400 })
+      }
+      updateData.rubricConfig = JSON.stringify(validated.value)
+    }
 
     const result = await db
       .update(assignments)
@@ -106,7 +119,6 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    initializeDatabase()
     const { id } = await params
     const assignmentId = parseInt(id, 10)
 

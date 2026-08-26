@@ -54,6 +54,7 @@ export default function SubmissionReviewPage() {
   const submissionId = params.subId
 
   const [submission, setSubmission] = useState<SubmissionData | null>(null)
+  const [allowPreviewScripts, setAllowPreviewScripts] = useState(false)
   const [assignment, setAssignment] = useState<Assignment | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
@@ -291,13 +292,36 @@ export default function SubmissionReviewPage() {
                   </CardHeader>
                   <CardContent>
                     {submission.finalCode ? (
-                      <div className="border rounded-lg overflow-hidden bg-white">
-                        <iframe
-                          srcDoc={submission.finalCode}
-                          sandbox="allow-scripts"
-                          className="w-full h-[600px]"
-                          title="Code Preview"
-                        />
+                      <div className="space-y-3">
+                        {/* Submitted code is untrusted. Scripts stay off unless asked for. */}
+                        <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2">
+                          <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+                            <span>
+                              {allowPreviewScripts
+                                ? 'Scripts are running. This is student-submitted code.'
+                                : 'Rendering markup only. Scripts are disabled.'}
+                            </span>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0"
+                            onClick={() => setAllowPreviewScripts(v => !v)}
+                          >
+                            {allowPreviewScripts ? 'Disable scripts' : 'Enable scripts'}
+                          </Button>
+                        </div>
+                        <div className="border rounded-lg overflow-hidden bg-white">
+                          <iframe
+                            key={allowPreviewScripts ? 'scripts-on' : 'scripts-off'}
+                            srcDoc={submission.finalCode}
+                            sandbox={allowPreviewScripts ? 'allow-scripts' : ''}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-[600px]"
+                            title="Code Preview"
+                          />
+                        </div>
                       </div>
                     ) : (
                       <div className="text-center py-12 text-muted-foreground">

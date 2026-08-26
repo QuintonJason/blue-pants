@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { db, initializeDatabase } from '@/lib/db'
+import { db } from '@/lib/db'
 import { assignments, submissions } from '@/lib/db/schema'
 import { desc, eq } from 'drizzle-orm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,8 +15,6 @@ import {
 import { formatDate } from '@/lib/utils'
 
 async function getAssignments() {
-  initializeDatabase()
-
   const allAssignments = await db.select().from(assignments).orderBy(desc(assignments.createdAt))
 
   return Promise.all(

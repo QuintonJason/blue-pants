@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server'
 import { setupPassword, setSessionCookie, isPasswordSetup } from '@/lib/auth'
-import { initializeDatabase } from '@/lib/db'
 
 export async function POST(request: Request) {
   try {
-    initializeDatabase()
-
     const { password } = await request.json()
 
     if (!password || password.length < 6) {

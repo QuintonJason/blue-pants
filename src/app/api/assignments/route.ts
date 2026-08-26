@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server'
-import { db, initializeDatabase } from '@/lib/db'
+import { db } from '@/lib/db'
 import { assignments } from '@/lib/db/schema'
 import { desc } from 'drizzle-orm'
+import { validateRubricConfig } from '@/lib/scorer/rubric'
 
 // GET - List all assignments
 export async function GET() {
   try {
-    initializeDatabase()
-
     const allAssignments = await db
       .select()
       .from(assignments)
@@ -26,8 +25,6 @@ export async function GET() {
 // POST - Create new assignment
 export async function POST(request: Request) {
   try {
-    initializeDatabase()
-
     const body = await request.json()
     const { name, description, rubricConfig } = body
 
@@ -38,10 +35,19 @@ export async function POST(request: Request) {
       )
     }
 
+    let rubricConfigJson: string | undefined = undefined
+    if (rubricConfig !== undefined) {
+      const validated = validateRubricConfig(rubricConfig)
+      if (!validated.ok) {
+        return NextResponse.json({ error: validated.error }, { status: 400 })
+      }
+      rubricConfigJson = JSON.stringify(validated.value)
+    }
+
     const result = await db.insert(assignments).values({
       name: name.trim(),
       description: description?.trim() || null,
-      rubricConfig: rubricConfig ? JSON.stringify(rubricConfig) : undefined,
+      rubricConfig: rubricConfigJson,
       createdAt: new Date().toISOString(),
     }).returning()
 

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { db, initializeDatabase } from '@/lib/db'
+import { db } from '@/lib/db'
 import { assignments, submissions } from '@/lib/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,8 +23,6 @@ import { formatDate, formatDateTime } from '@/lib/utils'
 import type { RubricConfig } from '@/lib/db/schema'
 
 async function getAssignment(id: number) {
-  initializeDatabase()
-
   const assignment = await db
     .select()
     .from(assignments)

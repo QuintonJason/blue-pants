@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { db, initializeDatabase } from '@/lib/db'
+import { db } from '@/lib/db'
 import { submissions, assignments } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { smartParse } from '@/lib/parser/chatgpt'
@@ -28,7 +28,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    initializeDatabase()
     const { id } = await params
     const assignmentId = parseInt(id, 10)
 

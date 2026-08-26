@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { db, initializeDatabase } from '@/lib/db'
+import { db } from '@/lib/db'
 import { submissions } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 
@@ -9,7 +9,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    initializeDatabase()
     const { id } = await params
     const submissionId = parseInt(id, 10)
 
@@ -49,7 +48,6 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    initializeDatabase()
     const { id } = await params
     const submissionId = parseInt(id, 10)
 
@@ -98,7 +96,6 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    initializeDatabase()
     const { id } = await params
     const submissionId = parseInt(id, 10)
 

@@ -21,6 +21,53 @@ export const DEFAULT_RUBRIC_CONFIG: RubricConfig = {
   independenceShown: 10,
 }
 
+/** The six dimensions every rubric must weight. */
+export const RUBRIC_DIMENSIONS = [
+  'problemArticulation',
+  'iterationQuality',
+  'criticalEvaluation',
+  'codeReviewEngagement',
+  'debuggingProcess',
+  'independenceShown',
+] as const
+
+export type RubricValidation =
+  | { ok: true; value: RubricConfig }
+  | { ok: false; error: string }
+
+/**
+ * Validates a rubric config from an untrusted source.
+ *
+ * The weights are a divisor in calculateTotalScore, so a config that sums to
+ * zero would turn every score into NaN. Reject it at the boundary instead.
+ */
+export function validateRubricConfig(input: unknown): RubricValidation {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+    return { ok: false, error: 'Rubric config must be an object' }
+  }
+
+  const record = input as Record<string, unknown>
+  const value = {} as RubricConfig
+
+  for (const dimension of RUBRIC_DIMENSIONS) {
+    const weight = record[dimension]
+    if (typeof weight !== 'number' || !Number.isFinite(weight)) {
+      return { ok: false, error: `Weight for ${dimension} must be a finite number` }
+    }
+    if (weight < 0 || weight > 100) {
+      return { ok: false, error: `Weight for ${dimension} must be between 0 and 100` }
+    }
+    value[dimension] = weight
+  }
+
+  const total = RUBRIC_DIMENSIONS.reduce((sum, d) => sum + value[d], 0)
+  if (total <= 0) {
+    return { ok: false, error: 'Rubric weights must add up to more than 0' }
+  }
+
+  return { ok: true, value }
+}
+
 /**
  * Scoring context - all the data needed to compute scores
  */
@@ -196,6 +243,9 @@ export function calculateTotalScore(
   rubricConfig: RubricConfig
 ): number {
   const totalWeight = Object.values(rubricConfig).reduce((sum, w) => sum + w, 0)
+
+  // Guard the divisor: a zero total would yield NaN and poison every stored score.
+  if (!(totalWeight > 0)) return 0
 
   const weightedSum =
     (dimensionScores.problemArticulation * rubricConfig.problemArticulation) +

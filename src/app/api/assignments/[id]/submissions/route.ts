@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { db, initializeDatabase } from '@/lib/db'
+import { db } from '@/lib/db'
 import { submissions, assignments } from '@/lib/db/schema'
 import { eq, desc } from 'drizzle-orm'
-import { smartParse } from '@/lib/parser/chatgpt'
+import { smartParse, type ParsedChat } from '@/lib/parser/chatgpt'
 import { computeAggregateMetrics } from '@/lib/analyzer/metrics'
 import { highlightChat, getHighlightSummary } from '@/lib/analyzer/highlighter'
 import { getCodeSummary, analyzeModifications } from '@/lib/analyzer/code-extractor'
@@ -15,7 +15,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    initializeDatabase()
     const { id } = await params
     const assignmentId = parseInt(id, 10)
 
@@ -48,7 +47,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    initializeDatabase()
     const { id } = await params
     const assignmentId = parseInt(id, 10)
 
@@ -95,7 +93,7 @@ export async function POST(
     }
 
     // Parse all chat exports
-    const parsedChats = chatExports.flatMap((chatJson: string) => {
+    const parsedChats: ParsedChat[] = chatExports.flatMap((chatJson: string) => {
       try {
         return smartParse(chatJson)
       } catch (e) {

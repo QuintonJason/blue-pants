@@ -1,29 +1,8 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { SESSION_COOKIE_NAME, verifySessionToken } from '@/lib/session'
 
-// Simple session verification in middleware
-function verifySessionToken(token: string): boolean {
-  try {
-    const decoded = Buffer.from(token, 'base64').toString('utf-8')
-    const parts = decoded.split(':')
-    if (parts.length !== 3) return false
-
-    const [timestamp, , secret] = parts
-    const expectedSecret = process.env.SESSION_SECRET || 'transcript-local-secret-key'
-    if (secret !== expectedSecret) return false
-
-    // Session expires after 24 hours
-    const tokenTime = parseInt(timestamp, 10)
-    const now = Date.now()
-    const twentyFourHours = 24 * 60 * 60 * 1000
-
-    return now - tokenTime < twentyFourHours
-  } catch {
-    return false
-  }
-}
-
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Allow auth routes and static files
@@ -36,10 +15,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Check for session cookie
-  const sessionToken = request.cookies.get('transcript_session')
+  const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)
 
-  if (!sessionToken || !verifySessionToken(sessionToken.value)) {
+  if (!(await verifySessionToken(sessionToken?.value))) {
     // Redirect to login
     const loginUrl = new URL('/login', request.url)
     return NextResponse.redirect(loginUrl)
