@@ -133,6 +133,46 @@ export interface ModificationAnalysis {
   assessment: 'verbatim' | 'minor-changes' | 'substantial-changes' | 'significant-rewrite'
 }
 
+/**
+ * Split code into identifiers, numbers, and individual punctuation marks.
+ *
+ * Whitespace and line structure are discarded, so reformatting — reindenting, or
+ * collapsing a file onto one line — cannot change the result.
+ */
+function tokenize(code: string): string[] {
+  return code.match(/[A-Za-z0-9_$]+|[^\sA-Za-z0-9_$]/g) ?? []
+}
+
+/**
+ * How many of `finalTokens` can be accounted for by `aiTokens`, treating both as
+ * multisets so a token reused three times must appear three times to match.
+ */
+function countReusedTokens(aiTokens: string[], finalTokens: string[]): number {
+  const pool = new Map<string, number>()
+  for (const token of aiTokens) {
+    pool.set(token, (pool.get(token) ?? 0) + 1)
+  }
+
+  let reused = 0
+  for (const token of finalTokens) {
+    const available = pool.get(token) ?? 0
+    if (available > 0) {
+      pool.set(token, available - 1)
+      reused++
+    }
+  }
+  return reused
+}
+
+/**
+ * Estimates how much of the submitted code originated with the assistant.
+ *
+ * Comparison is token-based. It used to compare whole trimmed lines for exact
+ * equality, which measured formatting rather than authorship: running the
+ * assistant's own output through a minifier scored 0% verbatim and was reported as
+ * a "significant rewrite" worth 95 on the Independence dimension, while pasting the
+ * same code unchanged scored 20.
+ */
 export function analyzeModifications(
   aiCode: string,
   finalCode: string
@@ -140,39 +180,19 @@ export function analyzeModifications(
   const aiLines = aiCode.split('\n').map(l => l.trim()).filter(l => l.length > 0)
   const finalLines = finalCode.split('\n').map(l => l.trim()).filter(l => l.length > 0)
 
+  // Line counts describe the rendered diff, which is line-based.
   const aiLinesSet = new Set(aiLines)
   const finalLinesSet = new Set(finalLines)
+  const addedLines = finalLines.filter(line => !aiLinesSet.has(line)).length
+  const removedLines = aiLines.filter(line => !finalLinesSet.has(line)).length
 
-  // Lines that appear in both
-  let verbatimCount = 0
-  for (const line of finalLines) {
-    if (aiLinesSet.has(line)) {
-      verbatimCount++
-    }
-  }
-
-  // Lines added (in final but not in AI)
-  let addedLines = 0
-  for (const line of finalLines) {
-    if (!aiLinesSet.has(line)) {
-      addedLines++
-    }
-  }
-
-  // Lines removed (in AI but not in final)
-  let removedLines = 0
-  for (const line of aiLines) {
-    if (!finalLinesSet.has(line)) {
-      removedLines++
-    }
-  }
-
-  const modifiedLines = addedLines + removedLines
-  const verbatimPercentage = finalLines.length > 0
-    ? (verbatimCount / finalLines.length) * 100
+  // The assessment uses tokens, so formatting alone cannot move it.
+  const aiTokens = tokenize(aiCode)
+  const finalTokens = tokenize(finalCode)
+  const verbatimPercentage = finalTokens.length > 0
+    ? (countReusedTokens(aiTokens, finalTokens) / finalTokens.length) * 100
     : 0
 
-  // Determine assessment
   let assessment: ModificationAnalysis['assessment']
   if (verbatimPercentage > 95) {
     assessment = 'verbatim'
@@ -186,7 +206,7 @@ export function analyzeModifications(
 
   return {
     verbatimPercentage,
-    modifiedLines,
+    modifiedLines: addedLines + removedLines,
     addedLines,
     removedLines,
     assessment,

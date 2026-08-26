@@ -1,70 +1,29 @@
-/**
- * Chat Highlighter
- *
- * Identifies messages that should be highlighted in the chat viewer:
- * - Questions (blue) - shows engagement
- * - Error discussions (orange) - shows debugging process
- * - Short prompts (red) - potential red flag
- */
-
 import { ParsedChat, ChatMessage } from '../parser/chatgpt'
+import {
+  getMessageSignals,
+  isCodeReviewRequest,
+  isErrorDiscussion,
+  isLongContext,
+  isQuestion,
+  isShortPrompt,
+  type MessageSignals,
+} from './signals'
 
 export type HighlightType = 'question' | 'error' | 'short-prompt' | 'code-review' | 'long-context' | null
 
 export interface HighlightedMessage extends ChatMessage {
   highlightType: HighlightType
   highlightReason?: string
+  /** Every signal this message carries, not just the primary one shown as a badge. */
+  signals: MessageSignals
 }
 
-// Question indicators
-const QUESTION_PATTERNS = [
-  /\?/,
-  /^(how|why|what|when|where|which|can|could|would|should|is|are|do|does)\b/i,
-  /explain/i,
-  /help me understand/i,
-  /i don't understand/i,
-  /what does.*mean/i,
-  /how does.*work/i,
-]
-
-// Error/debugging indicators
-const ERROR_PATTERNS = [
-  /error/i,
-  /bug/i,
-  /issue/i,
-  /problem/i,
-  /doesn't work/i,
-  /not working/i,
-  /failed/i,
-  /exception/i,
-  /traceback/i,
-  /undefined/i,
-  /null/i,
-  /crash/i,
-  /broken/i,
-  /fix/i,
-  /debug/i,
-]
-
-// Code review indicators
-const CODE_REVIEW_PATTERNS = [
-  /review/i,
-  /check.*code/i,
-  /look at.*code/i,
-  /feedback/i,
-  /improve/i,
-  /optimize/i,
-  /any (issues|problems|bugs)/i,
-  /suggestions/i,
-  /best practice/i,
-]
-
-// Thresholds
-const SHORT_PROMPT_THRESHOLD = 50 // characters
-const LONG_CONTEXT_THRESHOLD = 500 // characters
-
 /**
- * Determine the highlight type for a message
+ * The single most notable thing about a message, for the badge in the chat viewer.
+ *
+ * This is a display concern and is intentionally lossy: a message that both asks a
+ * question and reports an error gets one badge. Counting for scoring must not use
+ * this — see getHighlightSummary, which counts every signal independently.
  */
 export function getHighlightType(message: ChatMessage): { type: HighlightType; reason?: string } {
   // Only highlight user messages
@@ -74,43 +33,20 @@ export function getHighlightType(message: ChatMessage): { type: HighlightType; r
 
   const content = message.content || ''
 
-  // Check for code review requests (positive signal)
-  for (const pattern of CODE_REVIEW_PATTERNS) {
-    if (pattern.test(content)) {
-      return { type: 'code-review', reason: 'Code review request' }
-    }
+  if (isCodeReviewRequest(content)) {
+    return { type: 'code-review', reason: 'Code review request' }
   }
-
-  // Check for error/debugging discussions (shows process)
-  for (const pattern of ERROR_PATTERNS) {
-    if (pattern.test(content)) {
-      return { type: 'error', reason: 'Debugging/error discussion' }
-    }
+  if (isErrorDiscussion(content)) {
+    return { type: 'error', reason: 'Debugging/error discussion' }
   }
-
-  // Check for questions (shows engagement)
-  for (const pattern of QUESTION_PATTERNS) {
-    if (pattern.test(content)) {
-      return { type: 'question', reason: 'Question asked' }
-    }
+  if (isQuestion(content)) {
+    return { type: 'question', reason: 'Question asked' }
   }
-
-  // Check for long context (positive signal)
-  if (content.length > LONG_CONTEXT_THRESHOLD) {
+  if (isLongContext(content)) {
     return { type: 'long-context', reason: 'Detailed context provided' }
   }
-
-  // Check for short prompts (potential red flag)
-  if (content.length < SHORT_PROMPT_THRESHOLD && content.length > 0) {
-    // Don't flag if it's clearly a follow-up acknowledgment
-    const acknowledgments = ['thanks', 'ok', 'got it', 'perfect', 'great', 'yes', 'no']
-    const isAcknowledgment = acknowledgments.some(ack =>
-      content.toLowerCase().trim().startsWith(ack)
-    )
-
-    if (!isAcknowledgment) {
-      return { type: 'short-prompt', reason: 'Very short prompt' }
-    }
+  if (isShortPrompt(content)) {
+    return { type: 'short-prompt', reason: 'Very short prompt' }
   }
 
   return { type: null }
@@ -126,6 +62,7 @@ export function highlightChat(chat: ParsedChat): HighlightedMessage[] {
       ...message,
       highlightType: type,
       highlightReason: reason,
+      signals: getMessageSignals(message.role, message.content),
     }
   })
 }
@@ -141,14 +78,34 @@ export interface HighlightSummary {
   longContexts: number
 }
 
+/**
+ * Counts each signal independently.
+ *
+ * Previously this counted the primary badge, so signals masked each other: a long,
+ * detailed message that mentioned an error was labelled "error" and therefore
+ * contributed nothing to longContexts, silently costing the student their Problem
+ * Articulation bonus. A question that mentioned a bug never counted as a question.
+ */
 export function getHighlightSummary(highlightedMessages: HighlightedMessage[]): HighlightSummary {
-  return {
-    questions: highlightedMessages.filter(m => m.highlightType === 'question').length,
-    errors: highlightedMessages.filter(m => m.highlightType === 'error').length,
-    shortPrompts: highlightedMessages.filter(m => m.highlightType === 'short-prompt').length,
-    codeReviews: highlightedMessages.filter(m => m.highlightType === 'code-review').length,
-    longContexts: highlightedMessages.filter(m => m.highlightType === 'long-context').length,
+  const summary: HighlightSummary = {
+    questions: 0,
+    errors: 0,
+    shortPrompts: 0,
+    codeReviews: 0,
+    longContexts: 0,
   }
+
+  for (const message of highlightedMessages) {
+    // Fall back for messages built before signals were attached.
+    const signals = message.signals ?? getMessageSignals(message.role, message.content)
+    if (signals.isQuestion) summary.questions++
+    if (signals.isErrorDiscussion) summary.errors++
+    if (signals.isShortPrompt) summary.shortPrompts++
+    if (signals.isCodeReview) summary.codeReviews++
+    if (signals.isLongContext) summary.longContexts++
+  }
+
+  return summary
 }
 
 /**

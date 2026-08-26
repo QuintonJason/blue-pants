@@ -172,7 +172,7 @@ function scoreCodeReviewEngagement(ctx: ScoringContext): number {
  * Based on: error mentions, debugging discussions
  */
 function scoreDebuggingProcess(ctx: ScoringContext): number {
-  const { metrics, highlights } = ctx
+  const { highlights } = ctx
 
   // Note: No errors could mean they got it right first time OR
   // they never encountered issues (suspicious for complex tasks)
@@ -180,11 +180,10 @@ function scoreDebuggingProcess(ctx: ScoringContext): number {
 
   let score = 50 // Base score
 
-  // Reward error/debugging discussions
+  // Reward error/debugging discussions. Counted once: highlights.errors and
+  // metrics.errorMentions both derive from the same signal over the same student
+  // messages, so adding both rewarded a single debugging exchange twice.
   score += Math.min(highlights.errors * 15, 40)
-
-  // Also consider overall error mentions in metrics
-  if (metrics.errorMentions > 0) score += 10
 
   return Math.max(0, Math.min(100, score))
 }

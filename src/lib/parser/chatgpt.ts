@@ -47,6 +47,8 @@ interface ChatGPTConversation {
   id: string
   title: string
   create_time: number
+  /** Leaf of the branch actually shown in ChatGPT; absent in some exports. */
+  current_node?: string
   mapping: Record<string, {
     id: string
     message?: ChatGPTMessage
@@ -76,54 +78,79 @@ export function extractCodeBlocks(content: string): CodeBlock[] {
 }
 
 /**
+ * The single conversation branch the student actually saw.
+ *
+ * A ChatGPT export is a tree, not a list: editing a prompt or regenerating a reply
+ * adds a sibling branch. Walking every child counted all abandoned variants, which
+ * inflated message and code-block counts for exactly the students who iterated
+ * most. Walking back from `current_node` recovers the surviving branch instead.
+ *
+ * Exports without `current_node` fall back to following the first child at each
+ * step, which is the same branch when nothing was ever regenerated.
+ */
+function conversationPath(
+  conversation: ChatGPTConversation
+): Array<{ id: string; message?: ChatGPTMessage; parent?: string; children?: string[] }> {
+  const { mapping, current_node: currentNode } = conversation
+
+  if (currentNode && mapping[currentNode]) {
+    const chain = []
+    const visited = new Set<string>()
+    let cursor: string | undefined = currentNode
+
+    while (cursor && mapping[cursor] && !visited.has(cursor)) {
+      visited.add(cursor)
+      chain.push(mapping[cursor])
+      cursor = mapping[cursor].parent
+    }
+
+    return chain.reverse()
+  }
+
+  const roots = Object.keys(mapping).filter(id => !mapping[id].parent)
+  const path = []
+  const visited = new Set<string>()
+
+  for (const root of roots) {
+    let cursor: string | undefined = root
+    while (cursor && mapping[cursor] && !visited.has(cursor)) {
+      visited.add(cursor)
+      path.push(mapping[cursor])
+      cursor = mapping[cursor].children?.[0]
+    }
+  }
+
+  return path
+}
+
+/**
  * Parse a single ChatGPT conversation from the export format
  */
 export function parseConversation(conversation: ChatGPTConversation): ParsedChat {
   const messages: ChatMessage[] = []
 
-  // Find the root message and traverse the conversation tree
-  const nodeIds = Object.keys(conversation.mapping)
-  const rootNodes = nodeIds.filter(id => !conversation.mapping[id].parent)
+  for (const node of conversationPath(conversation)) {
+    if (!node.message) continue
+    const msg = node.message
+    if (msg.author.role === 'system' || msg.author.role === 'tool') continue
 
-  // Build message chain by following children
-  function traverseMessages(nodeId: string) {
-    const node = conversation.mapping[nodeId]
-    if (!node) return
-
-    if (node.message && node.message.author.role !== 'system' && node.message.author.role !== 'tool') {
-      const msg = node.message
-      let content = ''
-
-      if (msg.content.parts && msg.content.parts.length > 0) {
-        content = msg.content.parts.join('\n')
-      } else if (msg.content.text) {
-        content = msg.content.text
-      }
-
-      if (content) {
-        const codeBlocks = msg.author.role === 'assistant' ? extractCodeBlocks(content) : []
-
-        messages.push({
-          id: msg.id,
-          role: msg.author.role as 'user' | 'assistant',
-          content,
-          timestamp: msg.create_time ? new Date(msg.create_time * 1000).toISOString() : undefined,
-          codeBlocks,
-        })
-      }
+    let content = ''
+    if (msg.content.parts && msg.content.parts.length > 0) {
+      content = msg.content.parts.join('\n')
+    } else if (msg.content.text) {
+      content = msg.content.text
     }
+    if (!content) continue
 
-    // Follow children in order
-    if (node.children && node.children.length > 0) {
-      for (const childId of node.children) {
-        traverseMessages(childId)
-      }
-    }
-  }
+    const codeBlocks = msg.author.role === 'assistant' ? extractCodeBlocks(content) : []
 
-  // Start traversal from root nodes
-  for (const rootId of rootNodes) {
-    traverseMessages(rootId)
+    messages.push({
+      id: msg.id,
+      role: msg.author.role as 'user' | 'assistant',
+      content,
+      timestamp: msg.create_time ? new Date(msg.create_time * 1000).toISOString() : undefined,
+      codeBlocks,
+    })
   }
 
   // Count total code blocks
