@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Cards - Student: Alex Johnson</title>
+  <style>
+    /*
+     * Product Card Component
+     * Student: Alex Johnson
+     * Assignment: Responsive Card Layout
+     *
+     * I learned about BEM naming and accessibility from this assignment.
+     * Added my own color scheme and extra features like the sale badge.
+     */
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f5f5;
+      padding: 2rem;
+      line-height: 1.5;
+    }
+
+    /* Container uses CSS Grid with auto-fit for responsiveness */
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Block: Product Card */
+    .product-card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      position: relative; /* For sale badge positioning - my addition */
+    }
+
+    .product-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    }
+
+    /* Accessibility: Respect user motion preferences */
+    @media (prefers-reduced-motion: reduce) {
+      .product-card {
+        transition: none;
+      }
+      .product-card:hover {
+        transform: none;
+      }
+    }
+
+    /* Element: Product Image */
+    .product-card__image {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      display: block; /* Removes bottom gap */
+    }
+
+    /* Element: Content Container */
+    .product-card__content {
+      padding: 1.25rem;
+    }
+
+    /* Element: Title */
+    .product-card__title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Element: Description - I added this for more context */
+    .product-card__description {
+      font-size: 0.9rem;
+      color: #666;
+      margin-bottom: 0.75rem;
+    }
+
+    /* Element: Price */
+    .product-card__price {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #2563eb;
+      margin-bottom: 1rem;
+    }
+
+    /* Modifier: Original price for sale items */
+    .product-card__price--original {
+      font-size: 0.9rem;
+      color: #999;
+      text-decoration: line-through;
+      font-weight: normal;
+      margin-left: 0.5rem;
+    }
+
+    /* Element: Add to Cart Button */
+    .product-card__button {
+      width: 100%;
+      padding: 0.875rem;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+
+    .product-card__button:hover {
+      background: #1d4ed8;
+    }
+
+    /* Accessibility: Focus styles for keyboard navigation */
+    .product-card__button:focus {
+      outline: 2px solid #1d4ed8;
+      outline-offset: 2px;
+    }
+
+    /* My addition: Sale badge */
+    .product-card__badge {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: #ef4444;
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    /* Modifier: Out of stock state */
+    .product-card--out-of-stock .product-card__image {
+      opacity: 0.5;
+    }
+
+    .product-card--out-of-stock .product-card__button {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    /* Page header - my addition */
+    .page-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .page-header__title {
+      font-size: 2rem;
+      color: #1a1a1a;
+      margin-bottom: 0.5rem;
+    }
+
+    .page-header__subtitle {
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <header class="page-header">
+    <h1 class="page-header__title">Featured Products</h1>
+    <p class="page-header__subtitle">Check out our latest collection</p>
+  </header>
+
+  <main class="product-grid">
+    <!-- Product Card 1: On Sale -->
+    <article class="product-card">
+      <span class="product-card__badge">Sale</span>
+      <img
+        src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400"
+        alt="Wireless over-ear headphones in black"
+        class="product-card__image"
+      >
+      <div class="product-card__content">
+        <h2 class="product-card__title">Wireless Headphones</h2>
+        <p class="product-card__description">Premium sound quality with 30-hour battery life and active noise cancellation.</p>
+        <p class="product-card__price">
+          $79.99
+          <span class="product-card__price--original">$99.99</span>
+        </p>
+        <button class="product-card__button" onclick="addToCart('headphones')">
+          Add to Cart
+        </button>
+      </div>
+    </article>
+
+    <!-- Product Card 2: Regular -->
+    <article class="product-card">
+      <img
+        src="https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400"
+        alt="Minimalist wristwatch with white face and brown leather strap"
+        class="product-card__image"
+      >
+      <div class="product-card__content">
+        <h2 class="product-card__title">Classic Watch</h2>
+        <p class="product-card__description">Elegant timepiece with genuine leather strap. Water resistant to 50m.</p>
+        <p class="product-card__price">$149.99</p>
+        <button class="product-card__button" onclick="addToCart('watch')">
+          Add to Cart
+        </button>
+      </div>
+    </article>
+
+    <!-- Product Card 3: Out of Stock (using modifier) -->
+    <article class="product-card product-card--out-of-stock">
+      <img
+        src="https://images.unsplash.com/photo-1585386959984-a4155224a1ad?w=400"
+        alt="Portable Bluetooth speaker in mint green"
+        class="product-card__image"
+      >
+      <div class="product-card__content">
+        <h2 class="product-card__title">Portable Speaker</h2>
+        <p class="product-card__description">Compact design with 360° sound. Perfect for outdoor adventures.</p>
+        <p class="product-card__price">$59.99</p>
+        <button class="product-card__button" disabled>
+          Out of Stock
+        </button>
+      </div>
+    </article>
+
+    <!-- Product Card 4: Regular -->
+    <article class="product-card">
+      <img
+        src="https://images.unsplash.com/photo-1572569511254-d8f925fe2cbb?w=400"
+        alt="Smartphone with edge-to-edge display"
+        class="product-card__image"
+      >
+      <div class="product-card__content">
+        <h2 class="product-card__title">Smartphone Pro</h2>
+        <p class="product-card__description">6.5" OLED display, triple camera system, all-day battery.</p>
+        <p class="product-card__price">$899.99</p>
+        <button class="product-card__button" onclick="addToCart('phone')">
+          Add to Cart
+        </button>
+      </div>
+    </article>
+  </main>
+
+  <script>
+    // Simple cart functionality - I added this as an extra feature
+    // The assignment only asked for HTML/CSS but I wanted to make it interactive
+
+    let cart = [];
+
+    function addToCart(productId) {
+      cart.push(productId);
+
+      // Show feedback to user
+      const button = event.target;
+      const originalText = button.textContent;
+
+      button.textContent = 'Added! ✓';
+      button.style.background = '#16a34a';
+
+      // Reset after 1.5 seconds
+      setTimeout(() => {
+        button.textContent = originalText;
+        button.style.background = '';
+      }, 1500);
+
+      console.log('Cart:', cart);
+    }
+  </script>
+</body>
+</html>

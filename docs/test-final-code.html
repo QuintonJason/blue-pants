@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Cards</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 2rem;
+    }
+
+    /* Grid container - I added this myself! */
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .product-card {
+      background: white;
+      border-radius: 12px; /* Made corners more rounded */
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      overflow: hidden;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .product-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+
+    /* Added focus styles for accessibility - my addition */
+    .product-card:focus-within {
+      outline: 2px solid #2563eb;
+      outline-offset: 2px;
+    }
+
+    .product-card__image {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+    }
+
+    .product-card__content {
+      padding: 1.25rem; /* Slightly more padding than AI suggested */
+    }
+
+    .product-card__title {
+      margin: 0 0 0.5rem;
+      font-size: 1.1rem;
+      color: #1f2937;
+    }
+
+    .product-card__price {
+      color: #2563eb;
+      font-weight: bold;
+      font-size: 1.25rem;
+      margin: 0 0 1rem;
+    }
+
+    /* Added sale price styling - my own feature */
+    .product-card__price--sale {
+      color: #dc2626;
+    }
+
+    .product-card__price-original {
+      text-decoration: line-through;
+      color: #9ca3af;
+      font-size: 0.9rem;
+      margin-left: 0.5rem;
+    }
+
+    .product-card__button {
+      width: 100%;
+      padding: 0.75rem;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 500;
+      transition: background 0.2s ease;
+    }
+
+    .product-card__button:hover {
+      background: #1d4ed8;
+    }
+
+    /* Added focus state for keyboard users */
+    .product-card__button:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.5);
+    }
+
+    /* Visually hidden for screen readers */
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* Sale badge - my own addition! */
+    .product-card__badge {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: #dc2626;
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    .product-card--has-badge {
+      position: relative;
+    }
+  </style>
+</head>
+<body>
+  <div class="product-grid">
+    <!-- Regular product card -->
+    <article class="product-card" aria-label="Wireless Headphones product">
+      <img
+        src="https://picsum.photos/400/300?random=1"
+        alt="Wireless Headphones - Black over-ear headphones with cushioned ear cups"
+        class="product-card__image"
+      >
+      <div class="product-card__content">
+        <h3 class="product-card__title">Wireless Headphones</h3>
+        <p class="product-card__price">
+          <span class="visually-hidden">Price:</span>
+          $79.99
+        </p>
+        <button
+          class="product-card__button"
+          aria-label="Add Wireless Headphones to cart"
+        >
+          Add to Cart
+        </button>
+      </div>
+    </article>
+
+    <!-- Product on sale - using my custom modifier -->
+    <article class="product-card product-card--has-badge" aria-label="Bluetooth Speaker on sale">
+      <span class="product-card__badge">Sale!</span>
+      <img
+        src="https://picsum.photos/400/300?random=2"
+        alt="Portable Bluetooth Speaker - Compact cylindrical speaker in blue"
+        class="product-card__image"
+      >
+      <div class="product-card__content">
+        <h3 class="product-card__title">Bluetooth Speaker</h3>
+        <p class="product-card__price product-card__price--sale">
+          <span class="visually-hidden">Sale Price:</span>
+          $34.99
+          <span class="product-card__price-original">$49.99</span>
+        </p>
+        <button
+          class="product-card__button"
+          aria-label="Add Bluetooth Speaker to cart"
+        >
+          Add to Cart
+        </button>
+      </div>
+    </article>
+
+    <!-- Another regular product -->
+    <article class="product-card" aria-label="USB-C Cable product">
+      <img
+        src="https://picsum.photos/400/300?random=3"
+        alt="USB-C Charging Cable - White braided cable, 6 feet long"
+        class="product-card__image"
+      >
+      <div class="product-card__content">
+        <h3 class="product-card__title">USB-C Cable (6ft)</h3>
+        <p class="product-card__price">
+          <span class="visually-hidden">Price:</span>
+          $12.99
+        </p>
+        <button
+          class="product-card__button"
+          aria-label="Add USB-C Cable to cart"
+        >
+          Add to Cart
+        </button>
+      </div>
+    </article>
+  </div>
+
+  <script>
+    // Simple cart functionality I added myself
+    document.querySelectorAll('.product-card__button').forEach(button => {
+      button.addEventListener('click', function() {
+        const card = this.closest('.product-card');
+        const productName = card.querySelector('.product-card__title').textContent;
+
+        // Visual feedback
+        this.textContent = 'Added!';
+        this.style.background = '#16a34a';
+
+        setTimeout(() => {
+          this.textContent = 'Add to Cart';
+          this.style.background = '';
+        }, 1500);
+
+        console.log(`Added to cart: ${productName}`);
+      });
+    });
+  </script>
+</body>
+</html>
