@@ -14,6 +14,7 @@ import { CodeDiff } from '@/components/code-diff'
 import { MetricsPanel } from '@/components/metrics-panel'
 import { ScoringPanel } from '@/components/scoring-panel'
 import { AiLikelihoodPanel } from '@/components/ai-likelihood-panel'
+import { CurriculumScopePanel } from '@/components/curriculum-scope-panel'
 import { TranscriptRequestPanel } from '@/components/transcript-request-panel'
 import { ManualGradePanel } from '@/components/manual-grade-panel'
 import {
@@ -33,7 +34,7 @@ import {
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { parseRubricSnapshot, rubricsMatch } from '@/lib/scorer/rubric'
-import type { Submission, Assignment, ComputedMetrics, DimensionScores, RubricConfig, CodeSmellSignalResult } from '@/lib/db/schema'
+import type { Submission, Assignment, ComputedMetrics, DimensionScores, RubricConfig, CodeSmellSignalResult, CurriculumScopeFlag } from '@/lib/db/schema'
 import type { ParsedChat, CodeBlock } from '@/lib/parser/chatgpt'
 import {
   Dialog,
@@ -52,6 +53,7 @@ interface SubmissionData extends Submission {
   parsedSuggestedDimensionScores: DimensionScores | null
   parsedAiCode: CodeBlock[]
   parsedAiLikelihoodSignals: CodeSmellSignalResult[]
+  parsedCurriculumScopeFlags: CurriculumScopeFlag[] | null
 }
 
 /** Parse the JSON-string columns on a raw submission row into the shape the UI wants. */
@@ -66,6 +68,7 @@ function hydrateSubmission(sub: Submission): SubmissionData {
       : null,
     parsedAiCode: JSON.parse(sub.aiCodeSnippets || '[]'),
     parsedAiLikelihoodSignals: sub.aiLikelihoodSignals ? JSON.parse(sub.aiLikelihoodSignals) : [],
+    parsedCurriculumScopeFlags: sub.curriculumScopeFlags ? JSON.parse(sub.curriculumScopeFlags) : null,
   }
 }
 
@@ -522,6 +525,11 @@ export default function SubmissionReviewPage() {
                   score={submission.aiLikelihoodScore}
                   signals={submission.parsedAiLikelihoodSignals}
                   scorerVersion={submission.aiLikelihoodScorerVersion}
+                  className="border-0 shadow-lg"
+                />
+                <CurriculumScopePanel
+                  flags={submission.parsedCurriculumScopeFlags}
+                  configured={!!assignment.curriculumScope}
                   className="border-0 shadow-lg"
                 />
                 <ManualGradePanel

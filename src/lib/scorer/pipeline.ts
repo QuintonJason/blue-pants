@@ -7,11 +7,12 @@
  */
 
 import type { CodeBlock, ParsedChat } from '../parser/chatgpt'
-import type { ComputedMetrics, CodeSmellSignalResult, DimensionScores, RubricConfig } from '../db/schema'
+import type { ComputedMetrics, CodeSmellSignalResult, CurriculumScopeFlag, DimensionScores, RubricConfig } from '../db/schema'
 import { computeAggregateMetrics } from '../analyzer/metrics'
 import { getHighlightSummary, highlightChat } from '../analyzer/highlighter'
 import { analyzeModifications, getCodeSummary } from '../analyzer/code-extractor'
 import { scoreAiLikelihood, CODE_SMELL_SCORER_VERSION } from '../analyzer/code-smell'
+import { checkCurriculumScope, validateCurriculumScope } from '../analyzer/curriculum-scope'
 import { calculateScores } from './rubric'
 
 export interface ScoredSubmission {
@@ -101,16 +102,44 @@ export function rescoreStoredSubmission(
   }
 }
 
+/**
+ * Check code against an assignment's curriculumScope (JSON string, as stored on
+ * assignments.curriculumScope). Returns null — "not computed" — if the assignment
+ * has no scope configured or it fails to parse, rather than flagging everything
+ * against an empty taught-set.
+ */
+export function checkSubmissionCurriculumScope(
+  code: string,
+  storedCurriculumScope: string | null | undefined
+): CurriculumScopeFlag[] | null {
+  if (!storedCurriculumScope) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(storedCurriculumScope)
+  } catch {
+    return null
+  }
+  const validated = validateCurriculumScope(parsed)
+  if (!validated.ok) return null
+  return checkCurriculumScope(code, validated.value.taughtTechniqueIds, validated.value.weekByTechnique)
+}
+
 // Score a 'code_only' submission — no transcript, so a separate heuristic over the code alone (see analyzer/code-smell.ts).
 export interface CodeOnlyScored {
   aiLikelihoodScore: number
   aiLikelihoodSignals: CodeSmellSignalResult[]
   aiLikelihoodScorerVersion: string
+  curriculumScopeFlags: CurriculumScopeFlag[] | null
 }
 
-export function scoreCodeOnlySubmission(finalCode: string): CodeOnlyScored {
+export function scoreCodeOnlySubmission(finalCode: string, assignmentCurriculumScope?: string | null): CodeOnlyScored {
   const { score, signals } = scoreAiLikelihood(finalCode)
-  return { aiLikelihoodScore: score, aiLikelihoodSignals: signals, aiLikelihoodScorerVersion: CODE_SMELL_SCORER_VERSION }
+  return {
+    aiLikelihoodScore: score,
+    aiLikelihoodSignals: signals,
+    aiLikelihoodScorerVersion: CODE_SMELL_SCORER_VERSION,
+    curriculumScopeFlags: checkSubmissionCurriculumScope(finalCode, assignmentCurriculumScope),
+  }
 }
 
 /** The fields a code_only rescore is allowed to overwrite. */
@@ -118,13 +147,18 @@ export interface CodeOnlyRescoreUpdate {
   aiLikelihoodScore: number
   aiLikelihoodSignals: string
   aiLikelihoodScorerVersion: string
+  curriculumScopeFlags: string | null
 }
 
-export function rescoreCodeOnlySubmission(finalCode: string | null): CodeOnlyRescoreUpdate {
-  const scored = scoreCodeOnlySubmission(finalCode ?? '')
+export function rescoreCodeOnlySubmission(
+  finalCode: string | null,
+  assignmentCurriculumScope?: string | null
+): CodeOnlyRescoreUpdate {
+  const scored = scoreCodeOnlySubmission(finalCode ?? '', assignmentCurriculumScope)
   return {
     aiLikelihoodScore: scored.aiLikelihoodScore,
     aiLikelihoodSignals: JSON.stringify(scored.aiLikelihoodSignals),
     aiLikelihoodScorerVersion: scored.aiLikelihoodScorerVersion,
+    curriculumScopeFlags: scored.curriculumScopeFlags ? JSON.stringify(scored.curriculumScopeFlags) : null,
   }
 }

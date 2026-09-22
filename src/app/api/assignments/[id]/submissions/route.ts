@@ -93,7 +93,7 @@ export async function POST(
         )
       }
 
-      const scored = scoreCodeOnlySubmission(finalCode)
+      const scored = scoreCodeOnlySubmission(finalCode, assignment[0].curriculumScope)
 
       const result = await db.insert(submissions).values({
         assignmentId,
@@ -105,6 +105,7 @@ export async function POST(
         aiLikelihoodScore: scored.aiLikelihoodScore,
         aiLikelihoodSignals: JSON.stringify(scored.aiLikelihoodSignals),
         aiLikelihoodScorerVersion: scored.aiLikelihoodScorerVersion,
+        curriculumScopeFlags: scored.curriculumScopeFlags ? JSON.stringify(scored.curriculumScopeFlags) : null,
       }).returning()
 
       return NextResponse.json(result[0])

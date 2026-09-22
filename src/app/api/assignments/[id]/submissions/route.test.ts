@@ -102,6 +102,33 @@ describe('POST /api/assignments/[id]/submissions', () => {
       expect(typeof body.aiLikelihoodScore).toBe('number')
       expect(JSON.parse(body.aiLikelihoodSignals).length).toBeGreaterThan(0)
     })
+
+    it('flags techniques outside the assignment curriculum scope', async () => {
+      const assignment = await seedAssignment({
+        curriculumScope: JSON.stringify({ taughtTechniqueIds: ['css-hover'] }),
+      })
+      const res = await POST(
+        jsonRequest({
+          studentName: 'Alex',
+          submissionMode: 'code_only',
+          finalCode: '<style>@media (max-width: 768px) { .x { color: red; } }</style>',
+        }),
+        routeParams(assignment.id)
+      )
+      const body = await res.json()
+      const flags = JSON.parse(body.curriculumScopeFlags)
+      expect(flags.some((f: { id: string }) => f.id === 'css-media-queries')).toBe(true)
+    })
+
+    it('leaves curriculumScopeFlags null when the assignment has no scope configured', async () => {
+      const assignment = await seedAssignment()
+      const res = await POST(
+        jsonRequest({ studentName: 'Alex', submissionMode: 'code_only', finalCode: '@media (max-width: 768px) {}' }),
+        routeParams(assignment.id)
+      )
+      const body = await res.json()
+      expect(body.curriculumScopeFlags).toBeNull()
+    })
   })
 })
 

@@ -72,9 +72,9 @@ export function storedChatExports(messages: Array<{ role: 'user' | 'assistant'; 
   return JSON.stringify(smartParse(simpleChatExport(messages)))
 }
 
-export function jsonRequest(body?: unknown): Request {
+export function jsonRequest(body?: unknown, method = 'POST'): Request {
   return new Request('http://localhost/test', {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body ?? {}),
   })

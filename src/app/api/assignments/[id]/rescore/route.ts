@@ -66,7 +66,7 @@ export async function POST(
     for (const submission of rows) {
       try {
         if (submission.submissionMode === 'code_only') {
-          const update = rescoreCodeOnlySubmission(submission.finalCode)
+          const update = rescoreCodeOnlySubmission(submission.finalCode, assignment[0].curriculumScope)
           await db.update(submissions).set(update).where(eq(submissions.id, submission.id))
           results.push({
             submissionId: submission.id,

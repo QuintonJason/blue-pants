@@ -35,9 +35,19 @@ export async function POST(
     }
     const submission = existing[0]
 
+    const assignment = await db
+      .select()
+      .from(assignments)
+      .where(eq(assignments.id, submission.assignmentId))
+      .limit(1)
+
+    if (assignment.length === 0) {
+      return NextResponse.json({ error: 'Assignment not found' }, { status: 404 })
+    }
+
     // A code_only submission has no transcript to score against — it gets the code-based heuristic instead.
     if (submission.submissionMode === 'code_only') {
-      const update = rescoreCodeOnlySubmission(submission.finalCode)
+      const update = rescoreCodeOnlySubmission(submission.finalCode, assignment[0].curriculumScope)
       const result = await db
         .update(submissions)
         .set(update)
@@ -49,16 +59,6 @@ export async function POST(
         previousAiLikelihoodScore: submission.aiLikelihoodScore,
         aiLikelihoodScore: update.aiLikelihoodScore,
       })
-    }
-
-    const assignment = await db
-      .select()
-      .from(assignments)
-      .where(eq(assignments.id, submission.assignmentId))
-      .limit(1)
-
-    if (assignment.length === 0) {
-      return NextResponse.json({ error: 'Assignment not found' }, { status: 404 })
     }
 
     // Score against the assignment's current rubric, which is what the report shows.

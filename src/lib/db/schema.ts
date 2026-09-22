@@ -22,6 +22,12 @@ export const assignments = sqliteTable('assignments', {
     debuggingProcess: 10,
     independenceShown: 10,
   })),
+
+  // Which analyzer/curriculum-scope.ts technique IDs are already taught by this
+  // assignment's due date (JSON string[]). Null = not configured, so the code_only
+  // pipeline skips the check entirely rather than flagging everything against an
+  // empty set. Per-assignment because due dates (and so "taught by now") differ.
+  curriculumScope: text('curriculum_scope'),
 })
 
 // Submissions
@@ -79,6 +85,12 @@ export const submissions = sqliteTable('submissions', {
   // null (not asked), 'requested', or 'received' (upgraded this submission to submissionMode 'chat').
   transcriptStatus: text('transcript_status'),
   transcriptRequestedAt: text('transcript_requested_at'),
+
+  // Code-only path: techniques found in the code that the assignment's
+  // curriculumScope says aren't taught yet (JSON array of CurriculumScopeFlag).
+  // Null if the assignment has no curriculumScope configured. Informational for
+  // the integrity track only, like aiLikelihoodScore — never the content grade.
+  curriculumScopeFlags: text('curriculum_scope_flags'),
 })
 
 // Types for TypeScript
@@ -138,3 +150,11 @@ export interface CodeSmellSignalResult {
 
 export type SubmissionMode = 'chat' | 'code_only'
 export type TranscriptStatus = 'requested' | 'received' | null
+
+// A technique found in the code that the assignment's curriculumScope says isn't taught yet (see analyzer/curriculum-scope.ts)
+export interface CurriculumScopeFlag {
+  id: string
+  label: string
+  syllabusWeek: number | null // null = not on the syllabus at all, not just "later"
+  evidence: string[]
+}

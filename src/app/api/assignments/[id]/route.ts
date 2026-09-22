@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { assignments, submissions } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { validateRubricConfig } from '@/lib/scorer/rubric'
+import { validateCurriculumScope } from '@/lib/analyzer/curriculum-scope'
 
 // GET - Get single assignment with submission count
 export async function GET(
@@ -69,7 +70,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { name, description, rubricConfig } = body
+    const { name, description, rubricConfig, curriculumScope } = body
 
     const updateData: Record<string, unknown> = {}
     if (name !== undefined) {
@@ -88,6 +89,17 @@ export async function PUT(
         return NextResponse.json({ error: validated.error }, { status: 400 })
       }
       updateData.rubricConfig = JSON.stringify(validated.value)
+    }
+    if (curriculumScope !== undefined) {
+      if (curriculumScope === null) {
+        updateData.curriculumScope = null
+      } else {
+        const validated = validateCurriculumScope(curriculumScope)
+        if (!validated.ok) {
+          return NextResponse.json({ error: validated.error }, { status: 400 })
+        }
+        updateData.curriculumScope = JSON.stringify(validated.value)
+      }
     }
 
     const result = await db

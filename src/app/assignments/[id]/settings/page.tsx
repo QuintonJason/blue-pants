@@ -14,9 +14,11 @@ import {
   ArrowLeft,
   Save,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  GraduationCap
 } from 'lucide-react'
 import { DEFAULT_RUBRIC_CONFIG } from '@/lib/scorer/rubric'
+import { TECHNIQUE_LIBRARY, type CurriculumScopeConfig } from '@/lib/analyzer/curriculum-scope'
 import type { RubricConfig, Assignment } from '@/lib/db/schema'
 import {
   Dialog,
@@ -64,6 +66,8 @@ export default function AssignmentSettingsPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [rubricConfig, setRubricConfig] = useState<RubricConfig>(DEFAULT_RUBRIC_CONFIG)
+  const [taughtTechniqueIds, setTaughtTechniqueIds] = useState<Set<string>>(new Set())
+  const [weekByTechnique, setWeekByTechnique] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -77,6 +81,13 @@ export default function AssignmentSettingsPage() {
         setName(data.name)
         setDescription(data.description || '')
         setRubricConfig(JSON.parse(data.rubricConfig))
+        if (data.curriculumScope) {
+          const scope: CurriculumScopeConfig = JSON.parse(data.curriculumScope)
+          setTaughtTechniqueIds(new Set(scope.taughtTechniqueIds))
+          setWeekByTechnique(
+            Object.fromEntries(Object.entries(scope.weekByTechnique || {}).map(([id, w]) => [id, String(w)]))
+          )
+        }
         setLoading(false)
       })
       .catch(() => {
@@ -91,15 +102,36 @@ export default function AssignmentSettingsPage() {
     setRubricConfig(prev => ({ ...prev, [key]: value[0] }))
   }
 
+  const handleTechniqueToggle = (id: string, taught: boolean) => {
+    setTaughtTechniqueIds(prev => {
+      const next = new Set(prev)
+      if (taught) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
   const handleSave = async () => {
     setError('')
     setSaving(true)
+
+    const weekByTechniqueNumeric = Object.fromEntries(
+      Object.entries(weekByTechnique)
+        .filter(([, v]) => v.trim() !== '')
+        .map(([id, v]) => [id, Number(v)])
+        .filter(([, v]) => Number.isFinite(v))
+    )
+
+    const curriculumScope: CurriculumScopeConfig = {
+      taughtTechniqueIds: Array.from(taughtTechniqueIds),
+      ...(Object.keys(weekByTechniqueNumeric).length > 0 ? { weekByTechnique: weekByTechniqueNumeric } : {}),
+    }
 
     try {
       const res = await fetch(`/api/assignments/${assignmentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description, rubricConfig }),
+        body: JSON.stringify({ name, description, rubricConfig, curriculumScope }),
       })
 
       if (!res.ok) {
@@ -221,6 +253,53 @@ export default function AssignmentSettingsPage() {
                 />
               </div>
             ))}
+          </CardContent>
+        </Card>
+
+        {/* Curriculum Scope */}
+        <Card className="border-0 shadow-lg mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <GraduationCap className="w-4 h-4 text-violet-600" />
+              Curriculum Scope
+            </CardTitle>
+            <CardDescription>
+              Check off techniques already taught by this assignment&apos;s due date.
+              Code-only submissions get flagged for anything unchecked here found in
+              their code — a syllabus-grounded signal for the integrity track, never
+              factored into a grade. Leave everything unchecked to disable this check.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {TECHNIQUE_LIBRARY.map(technique => {
+              const taught = taughtTechniqueIds.has(technique.id)
+              return (
+                <div key={technique.id} className="flex items-center gap-3 py-1">
+                  <input
+                    type="checkbox"
+                    id={`technique-${technique.id}`}
+                    checked={taught}
+                    onChange={(e) => handleTechniqueToggle(technique.id, e.target.checked)}
+                    className="h-4 w-4 rounded border-input accent-violet-600"
+                  />
+                  <Label htmlFor={`technique-${technique.id}`} className="flex-1 font-normal cursor-pointer">
+                    {technique.label}
+                  </Label>
+                  {!taught && (
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="week #"
+                      value={weekByTechnique[technique.id] || ''}
+                      onChange={(e) =>
+                        setWeekByTechnique(prev => ({ ...prev, [technique.id]: e.target.value }))
+                      }
+                      className="w-24 h-8 text-xs"
+                    />
+                  )}
+                </div>
+              )
+            })}
           </CardContent>
         </Card>
 
