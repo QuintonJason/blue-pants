@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Save } from 'lucide-react'
+import { Save, AlertCircle } from 'lucide-react'
 
 interface ManualGradePanelProps {
   currentScore: number | null
@@ -21,8 +21,10 @@ export function ManualGradePanel({ currentScore, teacherNotes: initialNotes, onS
   const [score, setScore] = useState(currentScore ?? 0)
   const [notes, setNotes] = useState(initialNotes || '')
   const [saving, setSaving] = useState(false)
+  const notesRequired = !notes.trim()
 
   const handleSave = async () => {
+    if (notesRequired) return
     setSaving(true)
     try {
       await onSave({ finalScore: score, teacherNotes: notes })
@@ -55,18 +57,24 @@ export function ManualGradePanel({ currentScore, teacherNotes: initialNotes, onS
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="notes">Teacher Notes</Label>
+          <Label htmlFor="notes">Teacher Notes *</Label>
           <Textarea
             id="notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Add notes about this submission..."
+            placeholder="Required: document your reasoning for this grade — there's no rubric behind it."
             rows={3}
           />
+          {notesRequired && (
+            <p className="flex items-center gap-1 text-xs text-amber-700">
+              <AlertCircle className="w-3.5 h-3.5" />
+              Required before saving — there's no rubric here, so notes are the only record of why.
+            </p>
+          )}
         </div>
         <Button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || notesRequired}
           className="w-full bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700"
         >
           <Save className="w-4 h-4 mr-2" />

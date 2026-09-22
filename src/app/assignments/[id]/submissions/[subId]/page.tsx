@@ -521,6 +521,7 @@ export default function SubmissionReviewPage() {
                 <AiLikelihoodPanel
                   score={submission.aiLikelihoodScore}
                   signals={submission.parsedAiLikelihoodSignals}
+                  scorerVersion={submission.aiLikelihoodScorerVersion}
                   className="border-0 shadow-lg"
                 />
                 <ManualGradePanel

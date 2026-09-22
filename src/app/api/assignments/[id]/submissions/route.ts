@@ -104,6 +104,7 @@ export async function POST(
         finalCode: finalCode.trim(),
         aiLikelihoodScore: scored.aiLikelihoodScore,
         aiLikelihoodSignals: JSON.stringify(scored.aiLikelihoodSignals),
+        aiLikelihoodScorerVersion: scored.aiLikelihoodScorerVersion,
       }).returning()
 
       return NextResponse.json(result[0])

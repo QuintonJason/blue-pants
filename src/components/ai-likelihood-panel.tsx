@@ -10,10 +10,11 @@ import type { CodeSmellSignalResult } from '@/lib/db/schema'
 interface AiLikelihoodPanelProps {
   score: number | null
   signals: CodeSmellSignalResult[]
+  scorerVersion: string | null
   className?: string
 }
 
-export function AiLikelihoodPanel({ score, signals, className }: AiLikelihoodPanelProps) {
+export function AiLikelihoodPanel({ score, signals, scorerVersion, className }: AiLikelihoodPanelProps) {
   if (score === null) {
     return (
       <Card className={className}>
@@ -50,9 +51,11 @@ export function AiLikelihoodPanel({ score, signals, className }: AiLikelihoodPan
         <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/40 rounded-lg p-3">
           <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-600" />
           <span>
-            Heuristic evidence only, not a determination of academic dishonesty. Use it to
-            decide whether to ask the student for their process — e.g. a chat export or a
-            short walkthrough — not to assign a grade.
+            Heuristic evidence only — not a determination of academic dishonesty, and not
+            sufficient on its own to support one. Use it to decide whether to ask the
+            student for their process (a chat export, a short walkthrough), and document
+            that conversation. Never cite this score alone as the basis for a grade or a
+            misconduct finding.
           </span>
         </div>
 
@@ -83,6 +86,10 @@ export function AiLikelihoodPanel({ score, signals, className }: AiLikelihoodPan
             <p className="text-xs text-muted-foreground">No signals triggered.</p>
           )}
         </div>
+
+        {scorerVersion && (
+          <p className="text-xs text-muted-foreground">Scored under ruleset {scorerVersion}. Recompute rescans with the current ruleset.</p>
+        )}
       </CardContent>
     </Card>
   )

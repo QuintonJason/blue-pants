@@ -73,6 +73,8 @@ export const submissions = sqliteTable('submissions', {
   // Code-only path: heuristic 0-100 estimate of AI-generated-code resemblance — evidence for a human call, never shown as a grade.
   aiLikelihoodScore: real('ai_likelihood_score'),
   aiLikelihoodSignals: text('ai_likelihood_signals'), // JSON array of CodeSmellSignalResult
+  // The CODE_SMELL_SCORER_VERSION the score above was computed with, so a later rule change can't make it inexplicable (mirrors rubricSnapshot).
+  aiLikelihoodScorerVersion: text('ai_likelihood_scorer_version'),
 
   // null (not asked), 'requested', or 'received' (upgraded this submission to submissionMode 'chat').
   transcriptStatus: text('transcript_status'),

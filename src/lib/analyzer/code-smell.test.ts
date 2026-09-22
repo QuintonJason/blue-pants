@@ -82,14 +82,40 @@ describe('scoreAiLikelihood', () => {
     expect(signals.every(s => !s.triggered)).toBe(true)
   })
 
-  it('does not flag a single inline style or one blank-target link missing noopener as best-practice-consistent', () => {
-    const inconsistent = `
-      <a href="https://a.com" target="_blank">A</a>
-      <a href="https://b.com" target="_blank" rel="noopener noreferrer">B</a>
+  it('never scores fulfilling an assignment requirement as suspicious', () => {
+    // rel="noopener noreferrer", alt text, and a responsive/animated CSS flourish
+    // are things this exact assignment brief explicitly required or invited as
+    // bonus work — scoring compliance as evidence of cheating doesn't survive an
+    // appeal, so no signal may key off them. Regression test for that decision:
+    // adding only those specific behaviors must not move the score at all.
+    // Identical line count and indentation in both variants — the only
+    // difference is the compliant attributes/rules themselves — so the two
+    // scores are only comparable if those attributes carry no weight.
+    const base = `
+      <a href="https://a.com">A</a>
+      <img src="a.jpg">
+      <style>
+        .card { color: red; }
+        .box { color: blue; }
+        .row { color: green; }
+        .col { color: black; }
+      </style>
     `
-    const { signals } = scoreAiLikelihood(inconsistent)
-    const bestPractices = signals.find(s => s.id === 'consistentBestPractices')!
-    expect(bestPractices.evidence.some(e => e.includes('noopener'))).toBe(false)
+    const withCompliantExtras = `
+      <a href="https://a.com" target="_blank" rel="noopener noreferrer">A</a>
+      <img src="a.jpg" alt="A descriptive caption">
+      <style>
+        .card { color: red; }
+        :root { --accent: #333; }
+        .card:hover { transform: scale(1.02); }
+        @media (max-width: 768px) { .card { flex-direction: column; } }
+      </style>
+    `
+    expect(scoreAiLikelihood(withCompliantExtras).score).toBe(scoreAiLikelihood(base).score)
+
+    const signalIds = scoreAiLikelihood(withCompliantExtras).signals.map(s => s.id)
+    expect(signalIds).not.toContain('consistentBestPractices')
+    expect(signalIds).not.toContain('structuralSophistication')
   })
 })
 

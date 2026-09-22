@@ -1,6 +1,15 @@
 // Heuristic, code-only estimate of AI-generation likelihood for the 'code_only' path (no chat transcript) — evidence for a human call, never a verdict. Signals are independent and capped; weights sum to 100.
+//
+// Deliberately excludes anything that rewards following a taught rule or an
+// assignment's own explicit requirements (e.g. alt text, target=_blank security
+// attributes, or "bonus" CSS the brief invites) — scoring "did what was asked" as
+// suspicious is indefensible on appeal and was cut after review. Signals here are
+// only about authorial voice (comment style, page prose, leftover rough edges).
 
 import type { CodeSmellSignalResult } from '../db/schema'
+
+// Bump whenever a signal or weight changes, so a stored score stays explainable against the exact ruleset that produced it.
+export const CODE_SMELL_SCORER_VERSION = '2026-09-22.2'
 
 /** Strip HTML/JS/CSS comments and tags to approximate visible reader-facing text. */
 function extractVisibleText(code: string): string {
@@ -43,77 +52,12 @@ interface SignalDefinition {
 const explanatoryComments: SignalDefinition = {
   id: 'explanatoryComments',
   label: 'Explanatory, tutorial-style comments',
-  maxPoints: 25,
+  maxPoints: 40,
   detect(code) {
     const comments = extractComments(code)
     const hits = comments.filter(c => EXPLANATORY_COMMENT_PATTERNS.some(p => p.test(c)))
-    const points = Math.min(hits.length * 8, 25)
+    const points = Math.min(hits.length * 13, 40)
     return { triggered: hits.length > 0, points, evidence: hits.slice(0, 5) }
-  },
-}
-
-// Accessibility/security hardening applied everywhere it could apply, not just once — the pattern a linter or generator produces.
-const consistentBestPractices: SignalDefinition = {
-  id: 'consistentBestPractices',
-  label: 'Uniformly applied accessibility/security best practices',
-  maxPoints: 20,
-  detect(code) {
-    const evidence: string[] = []
-    let points = 0
-
-    const blankLinks = Array.from(code.matchAll(/<a\b[^>]*target=["']_blank["'][^>]*>/gi))
-    if (blankLinks.length > 0) {
-      const withNoopener = blankLinks.filter(m => /rel=["'][^"']*noopener/i.test(m[0]))
-      if (withNoopener.length === blankLinks.length) {
-        points += 8
-        evidence.push(`rel="noopener noreferrer" on all ${blankLinks.length} target="_blank" link(s)`)
-      }
-    }
-
-    const images = Array.from(code.matchAll(/<img\b[^>]*>/gi))
-    if (images.length > 0) {
-      const withGoodAlt = images.filter(m => {
-        const alt = /alt=["']([^"']*)["']/i.exec(m[0])
-        return !!alt && alt[1].trim().length > 3 && !/\.(png|jpe?g|gif|webp)$/i.test(alt[1].trim())
-      })
-      if (withGoodAlt.length === images.length) {
-        points += 6
-        evidence.push(`descriptive alt text on all ${images.length} image(s)`)
-      }
-    }
-
-    if (/<meta\s+name=["']viewport["']/i.test(code) && /<link[^>]*rel=["']icon["']/i.test(code)) {
-      points += 6
-      evidence.push('viewport meta tag and favicon both present')
-    }
-
-    return { triggered: points > 0, points, evidence }
-  },
-}
-
-// CSS structure a first project rarely reaches for unprompted: custom properties, a responsive breakpoint, hover/transition micro-interactions.
-const structuralSophistication: SignalDefinition = {
-  id: 'structuralSophistication',
-  label: 'CSS structure beyond an intro assignment',
-  maxPoints: 20,
-  detect(code) {
-    const evidence: string[] = []
-    let points = 0
-
-    if (/:root\s*{[^}]*--[\w-]+\s*:/.test(code)) {
-      points += 7
-      evidence.push('CSS custom properties declared on :root')
-    }
-    if (/@media\s*\([^)]*(min|max)-width/i.test(code)) {
-      points += 6
-      evidence.push('responsive @media breakpoint')
-    }
-    if (/:hover\s*{[^}]*}/.test(code) && /transition\s*:/i.test(code)) {
-      points += 7
-      evidence.push('hover state paired with a CSS transition')
-    }
-
-    return { triggered: points > 0, points, evidence }
   },
 }
 
@@ -131,7 +75,7 @@ const LLM_PHRASE_PATTERNS = [
 const stockPhrasing: SignalDefinition = {
   id: 'stockPhrasing',
   label: 'Stock transitional phrasing in page text',
-  maxPoints: 20,
+  maxPoints: 35,
   detect(code) {
     const text = extractVisibleText(code)
     const hits: string[] = []
@@ -142,7 +86,7 @@ const stockPhrasing: SignalDefinition = {
     const emDashCount = (text.match(/—/g) ?? []).length
     if (emDashCount >= 2) hits.push(`${emDashCount} em dashes`)
 
-    const points = Math.min(hits.length * 7, 20)
+    const points = Math.min(hits.length * 12, 35)
     return { triggered: hits.length > 0, points, evidence: hits.slice(0, 5) }
   },
 }
@@ -151,7 +95,7 @@ const stockPhrasing: SignalDefinition = {
 const uniformPolish: SignalDefinition = {
   id: 'uniformPolish',
   label: 'No rough edges anywhere in the file',
-  maxPoints: 15,
+  maxPoints: 25,
   detect(code) {
     // Absence-of-markers checks are meaningless on trivial input (empty string trivially has "no TODO markers").
     if (code.trim().length < 20) return { triggered: false, points: 0, evidence: [] }
@@ -162,12 +106,12 @@ const uniformPolish: SignalDefinition = {
     const usesExternalStylesheet = /<link[^>]*rel=["']stylesheet["']/i.test(code)
     const hasInlineStyle = /style=["'][^"']+["']/i.test(code)
     if (usesExternalStylesheet && !hasInlineStyle) {
-      points += 5
+      points += 8
       evidence.push('zero inline styles despite an external stylesheet')
     }
 
     if (!/\b(TODO|FIXME|console\.log|XXX)\b/i.test(code)) {
-      points += 4
+      points += 7
       evidence.push('no leftover TODO/FIXME/debug markers')
     }
 
@@ -177,7 +121,7 @@ const uniformPolish: SignalDefinition = {
       const usesTabs = lines.some(l => /^\t/.test(l))
       const allEven = !usesTabs && indentUnits.every(n => n % 2 === 0)
       if (allEven || usesTabs) {
-        points += 6
+        points += 10
         evidence.push('perfectly consistent indentation throughout')
       }
     }
@@ -188,8 +132,6 @@ const uniformPolish: SignalDefinition = {
 
 const SIGNALS: SignalDefinition[] = [
   explanatoryComments,
-  consistentBestPractices,
-  structuralSophistication,
   stockPhrasing,
   uniformPolish,
 ]
@@ -227,13 +169,13 @@ export function interpretAiLikelihood(score: number): {
   if (score >= 70) {
     return {
       label: 'Strong indicators',
-      description: 'Multiple signals consistent with AI-generated code. Not proof — treat as a reason to ask for the student\'s process, not a verdict.',
+      description: 'Multiple signals consistent with AI-generated code. Not sufficient on its own to support an academic-integrity finding — use it to decide whether to have a conversation with the student, not as the basis for one.',
       color: 'text-red-600',
     }
   } else if (score >= 45) {
     return {
       label: 'Some indicators',
-      description: 'A few signals worth a closer look, but well within what an attentive student could produce.',
+      description: 'A few signals worth a closer look, but well within what an attentive student could produce on their own.',
       color: 'text-orange-600',
     }
   } else if (score >= 20) {

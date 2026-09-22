@@ -61,6 +61,28 @@ export async function PUT(
     const body = await request.json()
     const { finalScore, dimensionScores, teacherNotes, selfReflection, transcriptStatus } = body
 
+    // A code_only submission has no rubric backing a grade — require the teacher to
+    // write down why, so a grade can never be entered with zero paper trail.
+    if (finalScore !== undefined) {
+      const existing = await db
+        .select({ submissionMode: submissions.submissionMode, teacherNotes: submissions.teacherNotes })
+        .from(submissions)
+        .where(eq(submissions.id, submissionId))
+        .limit(1)
+
+      if (existing.length === 0) {
+        return NextResponse.json({ error: 'Submission not found' }, { status: 404 })
+      }
+
+      const effectiveNotes = teacherNotes !== undefined ? teacherNotes : existing[0].teacherNotes
+      if (existing[0].submissionMode === 'code_only' && !effectiveNotes?.trim()) {
+        return NextResponse.json(
+          { error: 'Teacher notes are required to save a grade on a submission with no transcript' },
+          { status: 400 }
+        )
+      }
+    }
+
     const updateData: Record<string, unknown> = {}
     if (finalScore !== undefined) updateData.finalScore = finalScore
     if (dimensionScores !== undefined) updateData.dimensionScores = JSON.stringify(dimensionScores)

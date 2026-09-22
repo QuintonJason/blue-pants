@@ -11,7 +11,7 @@ import type { ComputedMetrics, CodeSmellSignalResult, DimensionScores, RubricCon
 import { computeAggregateMetrics } from '../analyzer/metrics'
 import { getHighlightSummary, highlightChat } from '../analyzer/highlighter'
 import { analyzeModifications, getCodeSummary } from '../analyzer/code-extractor'
-import { scoreAiLikelihood } from '../analyzer/code-smell'
+import { scoreAiLikelihood, CODE_SMELL_SCORER_VERSION } from '../analyzer/code-smell'
 import { calculateScores } from './rubric'
 
 export interface ScoredSubmission {
@@ -105,17 +105,19 @@ export function rescoreStoredSubmission(
 export interface CodeOnlyScored {
   aiLikelihoodScore: number
   aiLikelihoodSignals: CodeSmellSignalResult[]
+  aiLikelihoodScorerVersion: string
 }
 
 export function scoreCodeOnlySubmission(finalCode: string): CodeOnlyScored {
   const { score, signals } = scoreAiLikelihood(finalCode)
-  return { aiLikelihoodScore: score, aiLikelihoodSignals: signals }
+  return { aiLikelihoodScore: score, aiLikelihoodSignals: signals, aiLikelihoodScorerVersion: CODE_SMELL_SCORER_VERSION }
 }
 
 /** The fields a code_only rescore is allowed to overwrite. */
 export interface CodeOnlyRescoreUpdate {
   aiLikelihoodScore: number
   aiLikelihoodSignals: string
+  aiLikelihoodScorerVersion: string
 }
 
 export function rescoreCodeOnlySubmission(finalCode: string | null): CodeOnlyRescoreUpdate {
@@ -123,5 +125,6 @@ export function rescoreCodeOnlySubmission(finalCode: string | null): CodeOnlyRes
   return {
     aiLikelihoodScore: scored.aiLikelihoodScore,
     aiLikelihoodSignals: JSON.stringify(scored.aiLikelihoodSignals),
+    aiLikelihoodScorerVersion: scored.aiLikelihoodScorerVersion,
   }
 }
