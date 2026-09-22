@@ -31,8 +31,8 @@ export const submissions = sqliteTable('submissions', {
   studentName: text('student_name').notNull(),
   submittedAt: text('submitted_at').notNull().$defaultFn(() => new Date().toISOString()),
 
-  // Chat data
-  chatExports: text('chat_exports').notNull(), // JSON array of parsed chats
+  // Chat data. Null for a 'code_only' submission — no transcript was offered or required.
+  chatExports: text('chat_exports'), // JSON array of parsed chats
 
   // Final code submission
   finalCode: text('final_code'),
@@ -66,6 +66,17 @@ export const submissions = sqliteTable('submissions', {
   // rubrics are editable, so without this a stored score cannot be explained: the
   // report would show old scores beside new weights with no way to tell.
   rubricSnapshot: text('rubric_snapshot'),
+
+  // 'chat' (scored against the collaboration rubric) or 'code_only' (no transcript exists yet, scored by aiLikelihoodScore instead).
+  submissionMode: text('submission_mode').notNull().default('chat'),
+
+  // Code-only path: heuristic 0-100 estimate of AI-generated-code resemblance — evidence for a human call, never shown as a grade.
+  aiLikelihoodScore: real('ai_likelihood_score'),
+  aiLikelihoodSignals: text('ai_likelihood_signals'), // JSON array of CodeSmellSignalResult
+
+  // null (not asked), 'requested', or 'received' (upgraded this submission to submissionMode 'chat').
+  transcriptStatus: text('transcript_status'),
+  transcriptRequestedAt: text('transcript_requested_at'),
 })
 
 // Types for TypeScript
@@ -112,3 +123,16 @@ export interface DimensionScores {
   debuggingProcess: number
   independenceShown: number
 }
+
+// One code-smell signal's result for a code_only submission (see analyzer/code-smell.ts)
+export interface CodeSmellSignalResult {
+  id: string
+  label: string
+  points: number
+  maxPoints: number
+  triggered: boolean
+  evidence: string[]
+}
+
+export type SubmissionMode = 'chat' | 'code_only'
+export type TranscriptStatus = 'requested' | 'received' | null

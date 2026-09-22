@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { assignments, submissions } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { DEFAULT_RUBRIC_CONFIG, validateRubricConfig } from '@/lib/scorer/rubric'
-import { rescoreStoredSubmission } from '@/lib/scorer/pipeline'
+import { rescoreStoredSubmission, rescoreCodeOnlySubmission } from '@/lib/scorer/pipeline'
 import type { RubricConfig } from '@/lib/db/schema'
 
 interface RescoreResult {
@@ -11,6 +11,8 @@ interface RescoreResult {
   studentName: string
   previousSuggestedScore: number | null
   suggestedScore?: number
+  previousAiLikelihoodScore?: number | null
+  aiLikelihoodScore?: number
   error?: string
 }
 
@@ -63,6 +65,23 @@ export async function POST(
 
     for (const submission of rows) {
       try {
+        if (submission.submissionMode === 'code_only') {
+          const update = rescoreCodeOnlySubmission(submission.finalCode)
+          await db.update(submissions).set(update).where(eq(submissions.id, submission.id))
+          results.push({
+            submissionId: submission.id,
+            studentName: submission.studentName,
+            previousSuggestedScore: submission.suggestedScore,
+            previousAiLikelihoodScore: submission.aiLikelihoodScore,
+            aiLikelihoodScore: update.aiLikelihoodScore,
+          })
+          continue
+        }
+
+        if (!submission.chatExports) {
+          throw new Error('No stored transcript to rescore')
+        }
+
         const update = rescoreStoredSubmission(
           submission.chatExports,
           submission.finalCode,
@@ -86,7 +105,9 @@ export async function POST(
     }
 
     const changed = results.filter(
-      r => r.suggestedScore !== undefined && r.suggestedScore !== r.previousSuggestedScore
+      r =>
+        (r.suggestedScore !== undefined && r.suggestedScore !== r.previousSuggestedScore) ||
+        (r.aiLikelihoodScore !== undefined && r.aiLikelihoodScore !== r.previousAiLikelihoodScore)
     ).length
 
     return NextResponse.json({

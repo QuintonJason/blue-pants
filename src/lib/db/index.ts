@@ -10,7 +10,10 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true })
 }
 
-const sqlite = new Database(path.join(dataDir, 'transcript.db'))
+// Overridable so integration tests can point at a disposable database file instead of the real one.
+const dbFileName = process.env.TRANSCRIPT_DB_FILE || 'transcript.db'
+
+const sqlite = new Database(path.join(dataDir, dbFileName))
 export const db = drizzle(sqlite, { schema })
 
 // Schema lives in schema.ts and is applied by `drizzle-kit push`, which `npm run

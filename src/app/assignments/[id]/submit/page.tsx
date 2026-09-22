@@ -16,8 +16,10 @@ import {
   FileCode,
   X,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  ShieldAlert
 } from 'lucide-react'
+import type { SubmissionMode } from '@/lib/db/schema'
 
 interface UploadedFile {
   name: string
@@ -30,6 +32,7 @@ export default function SubmitPage() {
   const params = useParams()
   const assignmentId = params.id
 
+  const [submissionMode, setSubmissionMode] = useState<SubmissionMode>('chat')
   const [studentName, setStudentName] = useState('')
   const [chatFiles, setChatFiles] = useState<UploadedFile[]>([])
   const [codeContent, setCodeContent] = useState('')
@@ -68,7 +71,12 @@ export default function SubmitPage() {
       return
     }
 
-    if (chatFiles.length === 0) {
+    if (submissionMode === 'code_only') {
+      if (!codeContent.trim()) {
+        setError('Code is required for a code-only submission')
+        return
+      }
+    } else if (chatFiles.length === 0) {
       setError('At least one chat export is required')
       return
     }
@@ -79,11 +87,20 @@ export default function SubmitPage() {
       const res = await fetch(`/api/assignments/${assignmentId}/submissions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentName: studentName.trim(),
-          chatExports: chatFiles.map(f => f.content),
-          finalCode: codeContent.trim() || null,
-        }),
+        body: JSON.stringify(
+          submissionMode === 'code_only'
+            ? {
+                studentName: studentName.trim(),
+                submissionMode: 'code_only',
+                finalCode: codeContent.trim(),
+              }
+            : {
+                studentName: studentName.trim(),
+                submissionMode: 'chat',
+                chatExports: chatFiles.map(f => f.content),
+                finalCode: codeContent.trim() || null,
+              }
+        ),
       })
 
       if (!res.ok) {
@@ -140,7 +157,68 @@ export default function SubmitPage() {
             </CardContent>
           </Card>
 
+          {/* Submission Mode */}
+          <Card className="border-0 shadow-lg mb-6">
+            <CardHeader>
+              <CardTitle>Submission Type</CardTitle>
+              <CardDescription>
+                Most assignments will have a chat transcript. Use code-only when the
+                assignment never required one, or a student hasn&apos;t produced one yet.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSubmissionMode('chat')}
+                  className={`text-left p-4 rounded-lg border-2 transition-colors ${
+                    submissionMode === 'chat'
+                      ? 'border-violet-500 bg-violet-50'
+                      : 'border-muted hover:border-violet-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-medium">
+                    <FileJson className="w-4 h-4 text-violet-600" />
+                    Chat transcript
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Score AI collaboration quality from the student&apos;s ChatGPT export.
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSubmissionMode('code_only')}
+                  className={`text-left p-4 rounded-lg border-2 transition-colors ${
+                    submissionMode === 'code_only'
+                      ? 'border-violet-500 bg-violet-50'
+                      : 'border-muted hover:border-violet-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-medium">
+                    <ShieldAlert className="w-4 h-4 text-violet-600" />
+                    Code only — no transcript
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Get code-based AI-likelihood signals instead. You can request a
+                    transcript from the student and upgrade this submission later.
+                  </p>
+                </button>
+              </div>
+              {submissionMode === 'code_only' && (
+                <div className="flex items-start gap-2 text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-3 mt-3">
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>
+                    The signals this produces are heuristic evidence, not proof of AI use.
+                    Treat them as a reason to have a conversation with the student, not
+                    as a grade.
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Chat Export Upload */}
+          {submissionMode === 'chat' && (
           <Card className="border-0 shadow-lg mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -200,6 +278,7 @@ export default function SubmitPage() {
               </label>
             </CardContent>
           </Card>
+          )}
 
           {/* Code Submission */}
           <Card className="border-0 shadow-lg mb-6">
@@ -209,7 +288,9 @@ export default function SubmitPage() {
                 Final Code *
               </CardTitle>
               <CardDescription>
-                Paste the student's final submitted code. This will be compared against AI-generated code to assess independence.
+                {submissionMode === 'code_only'
+                  ? "Paste the student's submitted code. It will be scanned for code-based AI-likelihood signals."
+                  : "Paste the student's final submitted code. This will be compared against AI-generated code to assess independence."}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -237,7 +318,11 @@ export default function SubmitPage() {
             </Link>
             <Button
               type="submit"
-              disabled={loading || !studentName.trim() || chatFiles.length === 0}
+              disabled={
+                loading ||
+                !studentName.trim() ||
+                (submissionMode === 'code_only' ? !codeContent.trim() : chatFiles.length === 0)
+              }
               className="bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700"
             >
               <Upload className="w-4 h-4 mr-2" />

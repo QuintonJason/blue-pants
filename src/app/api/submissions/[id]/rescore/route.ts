@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { assignments, submissions } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { DEFAULT_RUBRIC_CONFIG, validateRubricConfig } from '@/lib/scorer/rubric'
-import { rescoreStoredSubmission } from '@/lib/scorer/pipeline'
+import { rescoreStoredSubmission, rescoreCodeOnlySubmission } from '@/lib/scorer/pipeline'
 import type { RubricConfig } from '@/lib/db/schema'
 
 /**
@@ -35,6 +35,22 @@ export async function POST(
     }
     const submission = existing[0]
 
+    // A code_only submission has no transcript to score against — it gets the code-based heuristic instead.
+    if (submission.submissionMode === 'code_only') {
+      const update = rescoreCodeOnlySubmission(submission.finalCode)
+      const result = await db
+        .update(submissions)
+        .set(update)
+        .where(eq(submissions.id, submissionId))
+        .returning()
+
+      return NextResponse.json({
+        submission: result[0],
+        previousAiLikelihoodScore: submission.aiLikelihoodScore,
+        aiLikelihoodScore: update.aiLikelihoodScore,
+      })
+    }
+
     const assignment = await db
       .select()
       .from(assignments)
@@ -56,6 +72,13 @@ export async function POST(
         )
       }
       rubricConfig = validated.value
+    }
+
+    if (!submission.chatExports) {
+      return NextResponse.json(
+        { error: 'This submission has no stored transcript to rescore' },
+        { status: 422 }
+      )
     }
 
     let update

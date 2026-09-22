@@ -224,8 +224,17 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
+                            {submission.submissionMode === 'code_only' && (
+                              <Badge variant="warning">No Transcript</Badge>
+                            )}
                             {submission.finalScore !== null ? (
                               <Badge variant="success">{submission.finalScore}%</Badge>
+                            ) : submission.submissionMode === 'code_only' ? (
+                              submission.aiLikelihoodScore !== null && (
+                                <Badge variant="secondary">
+                                  AI-likelihood {Math.round(submission.aiLikelihoodScore)}
+                                </Badge>
+                              )
                             ) : submission.suggestedScore !== null ? (
                               <Badge variant="secondary">
                                 ~{Math.round(submission.suggestedScore)}%

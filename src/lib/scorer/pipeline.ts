@@ -7,10 +7,11 @@
  */
 
 import type { CodeBlock, ParsedChat } from '../parser/chatgpt'
-import type { ComputedMetrics, DimensionScores, RubricConfig } from '../db/schema'
+import type { ComputedMetrics, CodeSmellSignalResult, DimensionScores, RubricConfig } from '../db/schema'
 import { computeAggregateMetrics } from '../analyzer/metrics'
 import { getHighlightSummary, highlightChat } from '../analyzer/highlighter'
 import { analyzeModifications, getCodeSummary } from '../analyzer/code-extractor'
+import { scoreAiLikelihood } from '../analyzer/code-smell'
 import { calculateScores } from './rubric'
 
 export interface ScoredSubmission {
@@ -97,5 +98,30 @@ export function rescoreStoredSubmission(
     suggestedScore: scored.suggestedScore,
     aiCodeSnippets: JSON.stringify(scored.aiCodeSnippets),
     rubricSnapshot: JSON.stringify(rubricConfig),
+  }
+}
+
+// Score a 'code_only' submission — no transcript, so a separate heuristic over the code alone (see analyzer/code-smell.ts).
+export interface CodeOnlyScored {
+  aiLikelihoodScore: number
+  aiLikelihoodSignals: CodeSmellSignalResult[]
+}
+
+export function scoreCodeOnlySubmission(finalCode: string): CodeOnlyScored {
+  const { score, signals } = scoreAiLikelihood(finalCode)
+  return { aiLikelihoodScore: score, aiLikelihoodSignals: signals }
+}
+
+/** The fields a code_only rescore is allowed to overwrite. */
+export interface CodeOnlyRescoreUpdate {
+  aiLikelihoodScore: number
+  aiLikelihoodSignals: string
+}
+
+export function rescoreCodeOnlySubmission(finalCode: string | null): CodeOnlyRescoreUpdate {
+  const scored = scoreCodeOnlySubmission(finalCode ?? '')
+  return {
+    aiLikelihoodScore: scored.aiLikelihoodScore,
+    aiLikelihoodSignals: JSON.stringify(scored.aiLikelihoodSignals),
   }
 }

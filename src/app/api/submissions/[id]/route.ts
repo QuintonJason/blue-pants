@@ -59,13 +59,18 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { finalScore, dimensionScores, teacherNotes, selfReflection } = body
+    const { finalScore, dimensionScores, teacherNotes, selfReflection, transcriptStatus } = body
 
     const updateData: Record<string, unknown> = {}
     if (finalScore !== undefined) updateData.finalScore = finalScore
     if (dimensionScores !== undefined) updateData.dimensionScores = JSON.stringify(dimensionScores)
     if (teacherNotes !== undefined) updateData.teacherNotes = teacherNotes
     if (selfReflection !== undefined) updateData.selfReflection = selfReflection
+    // 'received' is only ever set by POST /add-transcript, which does the actual upgrade work.
+    if (transcriptStatus === 'requested') {
+      updateData.transcriptStatus = 'requested'
+      updateData.transcriptRequestedAt = new Date().toISOString()
+    }
 
     const result = await db
       .update(submissions)

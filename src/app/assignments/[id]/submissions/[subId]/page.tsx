@@ -13,6 +13,9 @@ import { ChatViewer } from '@/components/chat-viewer'
 import { CodeDiff } from '@/components/code-diff'
 import { MetricsPanel } from '@/components/metrics-panel'
 import { ScoringPanel } from '@/components/scoring-panel'
+import { AiLikelihoodPanel } from '@/components/ai-likelihood-panel'
+import { TranscriptRequestPanel } from '@/components/transcript-request-panel'
+import { ManualGradePanel } from '@/components/manual-grade-panel'
 import {
   ArrowLeft,
   MessageSquare,
@@ -30,7 +33,7 @@ import {
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { parseRubricSnapshot, rubricsMatch } from '@/lib/scorer/rubric'
-import type { Submission, Assignment, ComputedMetrics, DimensionScores, RubricConfig } from '@/lib/db/schema'
+import type { Submission, Assignment, ComputedMetrics, DimensionScores, RubricConfig, CodeSmellSignalResult } from '@/lib/db/schema'
 import type { ParsedChat, CodeBlock } from '@/lib/parser/chatgpt'
 import {
   Dialog,
@@ -48,6 +51,22 @@ interface SubmissionData extends Submission {
   parsedDimensionScores: DimensionScores | null
   parsedSuggestedDimensionScores: DimensionScores | null
   parsedAiCode: CodeBlock[]
+  parsedAiLikelihoodSignals: CodeSmellSignalResult[]
+}
+
+/** Parse the JSON-string columns on a raw submission row into the shape the UI wants. */
+function hydrateSubmission(sub: Submission): SubmissionData {
+  return {
+    ...sub,
+    parsedChats: JSON.parse(sub.chatExports || '[]'),
+    parsedMetrics: JSON.parse(sub.computedMetrics || '{}'),
+    parsedDimensionScores: sub.dimensionScores ? JSON.parse(sub.dimensionScores) : null,
+    parsedSuggestedDimensionScores: sub.suggestedDimensionScores
+      ? JSON.parse(sub.suggestedDimensionScores)
+      : null,
+    parsedAiCode: JSON.parse(sub.aiCodeSnippets || '[]'),
+    parsedAiLikelihoodSignals: sub.aiLikelihoodSignals ? JSON.parse(sub.aiLikelihoodSignals) : [],
+  }
 }
 
 export default function SubmissionReviewPage() {
@@ -74,23 +93,7 @@ export default function SubmissionReviewPage() {
       fetch(`/api/assignments/${assignmentId}`).then(r => r.json()),
     ])
       .then(([sub, assign]) => {
-        // Parse JSON fields
-        const parsedChats = JSON.parse(sub.chatExports || '[]')
-        const parsedMetrics = JSON.parse(sub.computedMetrics || '{}')
-        const parsedDimensionScores = sub.dimensionScores ? JSON.parse(sub.dimensionScores) : null
-        const parsedSuggestedDimensionScores = sub.suggestedDimensionScores
-          ? JSON.parse(sub.suggestedDimensionScores)
-          : null
-        const parsedAiCode = JSON.parse(sub.aiCodeSnippets || '[]')
-
-        setSubmission({
-          ...sub,
-          parsedChats,
-          parsedMetrics,
-          parsedDimensionScores,
-          parsedSuggestedDimensionScores,
-          parsedAiCode,
-        })
+        setSubmission(hydrateSubmission(sub))
         setReflection(sub.selfReflection || '')
         setAssignment(assign)
         setLoading(false)
@@ -113,18 +116,13 @@ export default function SubmissionReviewPage() {
       }
 
       const sub = body.submission
-      setSubmission({
-        ...sub,
-        parsedChats: JSON.parse(sub.chatExports || '[]'),
-        parsedMetrics: JSON.parse(sub.computedMetrics || '{}'),
-        parsedDimensionScores: sub.dimensionScores ? JSON.parse(sub.dimensionScores) : null,
-        parsedSuggestedDimensionScores: sub.suggestedDimensionScores
-          ? JSON.parse(sub.suggestedDimensionScores)
-          : null,
-        parsedAiCode: JSON.parse(sub.aiCodeSnippets || '[]'),
-      })
+      setSubmission(hydrateSubmission(sub))
       setRescoreNote(
-        body.previousSuggestedScore === body.suggestedScore
+        sub.submissionMode === 'code_only'
+          ? body.previousAiLikelihoodScore === body.aiLikelihoodScore
+            ? `Unchanged at ${body.aiLikelihoodScore}`
+            : `AI-likelihood ${body.previousAiLikelihoodScore ?? '—'} → ${body.aiLikelihoodScore}`
+          : body.previousSuggestedScore === body.suggestedScore
           ? `Unchanged at ${body.suggestedScore}%`
           : `Suggested score ${body.previousSuggestedScore ?? '—'}% → ${body.suggestedScore}%`
       )
@@ -135,7 +133,11 @@ export default function SubmissionReviewPage() {
     }
   }
 
-  const handleSave = async (data: { finalScore: number; dimensionScores: DimensionScores; teacherNotes: string }) => {
+  const handleTranscriptUpdated = (sub: Submission) => {
+    setSubmission(hydrateSubmission(sub))
+  }
+
+  const handleSave = async (data: { finalScore: number; dimensionScores?: DimensionScores; teacherNotes: string }) => {
     const res = await fetch(`/api/submissions/${submissionId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -152,7 +154,7 @@ export default function SubmissionReviewPage() {
       finalScore: updated.finalScore,
       dimensionScores: updated.dimensionScores,
       teacherNotes: updated.teacherNotes,
-      parsedDimensionScores: data.dimensionScores,
+      parsedDimensionScores: data.dimensionScores ?? prev.parsedDimensionScores,
     } : null)
   }
 
@@ -213,6 +215,7 @@ export default function SubmissionReviewPage() {
   const scoredUnder = parseRubricSnapshot(submission.rubricSnapshot)
   const rubricChanged = !rubricsMatch(scoredUnder, rubricConfig)
   const allAiCode = submission.parsedAiCode.map(b => b.code).join('\n\n')
+  const isCodeOnly = submission.submissionMode === 'code_only'
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-violet-50/30 to-slate-50">
@@ -234,6 +237,11 @@ export default function SubmissionReviewPage() {
                   ) : (
                     <Badge variant="outline">Not Graded</Badge>
                   )}
+                  {isCodeOnly && (
+                    <Badge variant="warning" title="No chat transcript exists for this submission">
+                      No Transcript
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-sm text-muted-foreground">
                   {assignment.name}
@@ -248,7 +256,11 @@ export default function SubmissionReviewPage() {
                 variant="outline"
                 onClick={handleRescore}
                 disabled={rescoring}
-                title="Recompute the suggested score from this submission's stored transcript. Your saved grade and notes are not changed."
+                title={
+                  isCodeOnly
+                    ? "Recompute the AI-likelihood signals from this submission's stored code. Your saved grade and notes are not changed."
+                    : "Recompute the suggested score from this submission's stored transcript. Your saved grade and notes are not changed."
+                }
               >
                 {rescoring ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -300,33 +312,46 @@ export default function SubmissionReviewPage() {
           </span>
           <span className="flex items-center gap-1">
             <MessageSquare className="w-4 h-4" />
-            {submission.parsedChats.length} conversation(s)
+            {isCodeOnly ? 'No transcript' : `${submission.parsedChats.length} conversation(s)`}
           </span>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Main Content - Chat & Code */}
           <div className="lg:col-span-2 space-y-6">
-            <Tabs defaultValue="chat" className="w-full">
+            <Tabs defaultValue={isCodeOnly ? 'code' : 'chat'} className="w-full">
               <TabsList className="w-full justify-start">
-                <TabsTrigger value="chat" className="flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4" />
-                  Chat Log
-                </TabsTrigger>
-                <TabsTrigger value="diff" className="flex items-center gap-2">
-                  <Code className="w-4 h-4" />
-                  Code Comparison
-                </TabsTrigger>
+                {!isCodeOnly && (
+                  <TabsTrigger value="chat" className="flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4" />
+                    Chat Log
+                  </TabsTrigger>
+                )}
+                {!isCodeOnly && (
+                  <TabsTrigger value="diff" className="flex items-center gap-2">
+                    <Code className="w-4 h-4" />
+                    Code Comparison
+                  </TabsTrigger>
+                )}
+                {isCodeOnly && (
+                  <TabsTrigger value="code" className="flex items-center gap-2">
+                    <Code className="w-4 h-4" />
+                    Code
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="preview" className="flex items-center gap-2">
                   <Eye className="w-4 h-4" />
                   Preview
                 </TabsTrigger>
-                <TabsTrigger value="metrics" className="flex items-center gap-2 lg:hidden">
-                  <BarChart3 className="w-4 h-4" />
-                  Metrics
-                </TabsTrigger>
+                {!isCodeOnly && (
+                  <TabsTrigger value="metrics" className="flex items-center gap-2 lg:hidden">
+                    <BarChart3 className="w-4 h-4" />
+                    Metrics
+                  </TabsTrigger>
+                )}
               </TabsList>
 
+              {!isCodeOnly && (
               <TabsContent value="chat" className="mt-4">
                 <Card className="border-0 shadow-lg">
                   <CardHeader>
@@ -337,7 +362,9 @@ export default function SubmissionReviewPage() {
                   </CardContent>
                 </Card>
               </TabsContent>
+              )}
 
+              {!isCodeOnly && (
               <TabsContent value="diff" className="mt-4">
                 <Card className="border-0 shadow-lg">
                   <CardHeader>
@@ -351,6 +378,22 @@ export default function SubmissionReviewPage() {
                   </CardContent>
                 </Card>
               </TabsContent>
+              )}
+
+              {isCodeOnly && (
+              <TabsContent value="code" className="mt-4">
+                <Card className="border-0 shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="text-base">Submitted Code</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <pre className="text-xs font-mono bg-muted/40 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap">
+                      {submission.finalCode || 'No code submitted'}
+                    </pre>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+              )}
 
               <TabsContent value="preview" className="mt-4">
                 <Card className="border-0 shadow-lg">
@@ -400,17 +443,29 @@ export default function SubmissionReviewPage() {
                 </Card>
               </TabsContent>
 
+              {!isCodeOnly && (
               <TabsContent value="metrics" className="mt-4 lg:hidden">
                 <MetricsPanel metrics={submission.parsedMetrics} />
               </TabsContent>
+              )}
             </Tabs>
           </div>
 
           {/* Sidebar - Metrics & Scoring */}
           <div className="space-y-6">
-            <div className="hidden lg:block">
-              <MetricsPanel metrics={submission.parsedMetrics} className="border-0 shadow-lg" />
-            </div>
+            {isCodeOnly ? (
+              <TranscriptRequestPanel
+                submissionId={submission.id}
+                transcriptStatus={submission.transcriptStatus}
+                transcriptRequestedAt={submission.transcriptRequestedAt}
+                onUpdated={handleTranscriptUpdated}
+                className="border-0 shadow-lg"
+              />
+            ) : (
+              <div className="hidden lg:block">
+                <MetricsPanel metrics={submission.parsedMetrics} className="border-0 shadow-lg" />
+              </div>
+            )}
 
             {/* Student Self-Reflection */}
             <Card className="border-0 shadow-lg">
@@ -461,36 +516,54 @@ export default function SubmissionReviewPage() {
               </CardContent>
             </Card>
 
-            {rubricChanged && submission.suggestedScore !== null && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <div className="space-y-1">
-                    <p className="font-medium">
-                      {scoredUnder
-                        ? "Suggested under a different rubric"
-                        : "Rubric used for this suggestion is unknown"}
-                    </p>
-                    <p>
-                      {scoredUnder
-                        ? "The assignment's weights have changed since this was scored, so the suggestion below does not reflect the weights now shown."
-                        : "This submission was scored before the rubric was recorded, so its suggestion cannot be checked against the current weights."}{' '}
-                      Use Recompute to score it under the current rubric.
-                    </p>
+            {isCodeOnly ? (
+              <>
+                <AiLikelihoodPanel
+                  score={submission.aiLikelihoodScore}
+                  signals={submission.parsedAiLikelihoodSignals}
+                  className="border-0 shadow-lg"
+                />
+                <ManualGradePanel
+                  currentScore={submission.finalScore}
+                  teacherNotes={submission.teacherNotes}
+                  onSave={handleSave}
+                  className="border-0 shadow-lg"
+                />
+              </>
+            ) : (
+              <>
+                {rubricChanged && submission.suggestedScore !== null && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div className="space-y-1">
+                        <p className="font-medium">
+                          {scoredUnder
+                            ? "Suggested under a different rubric"
+                            : "Rubric used for this suggestion is unknown"}
+                        </p>
+                        <p>
+                          {scoredUnder
+                            ? "The assignment's weights have changed since this was scored, so the suggestion below does not reflect the weights now shown."
+                            : "This submission was scored before the rubric was recorded, so its suggestion cannot be checked against the current weights."}{' '}
+                          Use Recompute to score it under the current rubric.
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                )}
+                <ScoringPanel
+                  suggestedScore={submission.suggestedScore}
+                  suggestedDimensionScores={submission.parsedSuggestedDimensionScores}
+                  currentScore={submission.finalScore}
+                  currentDimensionScores={submission.parsedDimensionScores}
+                  rubricConfig={rubricConfig}
+                  teacherNotes={submission.teacherNotes}
+                  onSave={handleSave}
+                  className="border-0 shadow-lg"
+                />
+              </>
             )}
-            <ScoringPanel
-              suggestedScore={submission.suggestedScore}
-              suggestedDimensionScores={submission.parsedSuggestedDimensionScores}
-              currentScore={submission.finalScore}
-              currentDimensionScores={submission.parsedDimensionScores}
-              rubricConfig={rubricConfig}
-              teacherNotes={submission.teacherNotes}
-              onSave={handleSave}
-              className="border-0 shadow-lg"
-            />
           </div>
         </div>
       </main>

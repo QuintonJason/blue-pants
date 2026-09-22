@@ -4,8 +4,8 @@ import { submissions, assignments } from '@/lib/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { smartParse, type ParsedChat } from '@/lib/parser/chatgpt'
 import { DEFAULT_RUBRIC_CONFIG } from '@/lib/scorer/rubric'
-import { scoreSubmission } from '@/lib/scorer/pipeline'
-import type { RubricConfig } from '@/lib/db/schema'
+import { scoreSubmission, scoreCodeOnlySubmission } from '@/lib/scorer/pipeline'
+import type { RubricConfig, SubmissionMode } from '@/lib/db/schema'
 
 // GET - List submissions for an assignment
 export async function GET(
@@ -75,12 +75,38 @@ export async function POST(
 
     const body = await request.json()
     const { studentName, chatExports, finalCode } = body
+    const submissionMode: SubmissionMode = body.submissionMode === 'code_only' ? 'code_only' : 'chat'
 
     if (!studentName || studentName.trim().length === 0) {
       return NextResponse.json(
         { error: 'Student name is required' },
         { status: 400 }
       )
+    }
+
+    // No transcript exists for code_only, so it skips the chat requirement and uses a different heuristic (scoreCodeOnlySubmission).
+    if (submissionMode === 'code_only') {
+      if (!finalCode || !finalCode.trim()) {
+        return NextResponse.json(
+          { error: 'Code is required for a code-only submission' },
+          { status: 400 }
+        )
+      }
+
+      const scored = scoreCodeOnlySubmission(finalCode)
+
+      const result = await db.insert(submissions).values({
+        assignmentId,
+        studentName: studentName.trim(),
+        submittedAt: new Date().toISOString(),
+        submissionMode: 'code_only',
+        chatExports: null,
+        finalCode: finalCode.trim(),
+        aiLikelihoodScore: scored.aiLikelihoodScore,
+        aiLikelihoodSignals: JSON.stringify(scored.aiLikelihoodSignals),
+      }).returning()
+
+      return NextResponse.json(result[0])
     }
 
     if (!chatExports || chatExports.length === 0) {
@@ -114,6 +140,7 @@ export async function POST(
       assignmentId,
       studentName: studentName.trim(),
       submittedAt: new Date().toISOString(),
+      submissionMode: 'chat',
       chatExports: JSON.stringify(parsedChats),
       finalCode: finalCode || null,
       aiCodeSnippets: JSON.stringify(scored.aiCodeSnippets),
