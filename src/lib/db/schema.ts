@@ -126,6 +126,13 @@ export interface ComputedMetrics {
   iterationCount: number
   shortPromptCount: number
   longPromptCount: number
+  // Absent on metrics computed before these were tracked; read with `?? 0`.
+  /** Student requests unrelated to the code (image edits, story writing), excluded from the counts above. */
+  offTopicCount?: number
+  /** Requests that handed a whole feature, page or file to the assistant. */
+  delegationCount?: number
+  /** Distinct code files the assistant handed over as downloads, invisible to the code comparison. */
+  aiCodeDownloads?: number
 }
 
 // Dimension scores type

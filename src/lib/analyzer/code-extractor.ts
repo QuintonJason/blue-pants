@@ -5,7 +5,7 @@
  * for comparison with final submitted code.
  */
 
-import { ParsedChat, CodeBlock, extractCodeBlocks } from '../parser/chatgpt'
+import { ParsedChat, CodeBlock, assistantCodeBlocks, extractCodeBlocks } from '../parser/chatgpt'
 
 export interface ExtractedCodeSummary {
   totalBlocks: number
@@ -19,9 +19,7 @@ export interface ExtractedCodeSummary {
  * Extract all code from assistant messages in a chat
  */
 export function extractAssistantCode(chat: ParsedChat): CodeBlock[] {
-  return chat.messages
-    .filter(msg => msg.role === 'assistant')
-    .flatMap(msg => msg.codeBlocks)
+  return chat.messages.flatMap(assistantCodeBlocks)
 }
 
 const CODE_LINE_PATTERNS: Array<[RegExp, string]> = [
@@ -39,7 +37,7 @@ const MIN_UNFENCED_CODE_LINES = 3
  * this way far more often than they fence: one transcript had ten pastes of the
  * student's own pages and was counted as sharing no code at all.
  */
-function detectUnfencedCode(content: string): CodeBlock | null {
+export function detectUnfencedCode(content: string): CodeBlock | null {
   const votes: Record<string, number> = {}
   let codeLines = 0
   for (const line of content.split('\n')) {
@@ -224,7 +222,7 @@ export function findStudentFirstShingles(chats: ParsedChat[]): StudentFirstShing
   for (const chat of chats) {
     for (const msg of chat.messages) {
       // Students paste code without fences, so their whole message is in play.
-      const code = msg.role === 'user' ? msg.content : msg.codeBlocks.map(b => b.code).join('\n')
+      const code = msg.role === 'user' ? msg.content : assistantCodeBlocks(msg).map(b => b.code).join('\n')
       for (const key of shingleKeys(tokenize(code))) {
         if (seen.has(key)) continue
         seen.add(key)

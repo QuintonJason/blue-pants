@@ -221,8 +221,20 @@ function scoreDebuggingProcess(ctx: ScoringContext): number {
  * Calculate score for Independence Shown (0-100)
  * Based on: code modification analysis (if available)
  */
+/** Points off Independence per request that handed over a whole feature, page or file. */
+const DELEGATION_PENALTY = 5
+const DELEGATION_PENALTY_MAX = 30
+
 function scoreIndependenceShown(ctx: ScoringContext): number {
   const { codeModification, metrics } = ctx
+
+  // The code comparison can't see everything the assistant wrote: files it handed
+  // over as downloads never appear in the transcript. Asking for whole features is
+  // direct evidence either way, so it counts against independence on its own.
+  const delegationPenalty = Math.min(
+    (metrics.delegationCount ?? 0) * DELEGATION_PENALTY,
+    DELEGATION_PENALTY_MAX
+  )
 
   // If no code modification analysis, use other signals
   if (!codeModification) {
@@ -231,22 +243,29 @@ function scoreIndependenceShown(ctx: ScoringContext): number {
     // User sharing code is a good signal
     if (metrics.userCodeBlocks > 0) score += 20
 
-    return Math.max(0, Math.min(100, score))
+    return Math.max(0, Math.min(100, score - delegationPenalty))
   }
 
   // Score based on modification analysis
+  let score: number
   switch (codeModification.assessment) {
     case 'verbatim':
-      return 20 // Copy-pasted AI code
+      score = 20 // Copy-pasted AI code
+      break
     case 'minor-changes':
-      return 50 // Some changes
+      score = 50 // Some changes
+      break
     case 'substantial-changes':
-      return 75 // Good modifications
+      score = 75 // Good modifications
+      break
     case 'significant-rewrite':
-      return 95 // Significant personal contribution
+      score = 95 // Significant personal contribution
+      break
     default:
-      return 50
+      score = 50
   }
+
+  return Math.max(0, score - delegationPenalty)
 }
 
 /**

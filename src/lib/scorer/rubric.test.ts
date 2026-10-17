@@ -5,6 +5,7 @@ import {
   parseRubricSnapshot,
   rubricsMatch,
   DEFAULT_RUBRIC_CONFIG,
+  calculateDimensionScores,
 } from './rubric'
 import type { DimensionScores, RubricConfig } from '../db/schema'
 
@@ -129,5 +130,31 @@ describe('parseRubricSnapshot', () => {
     for (const bad of [null, undefined, '', 'not json', '{"problemArticulation":20}', JSON.stringify({ ...DEFAULT_RUBRIC_CONFIG, iterationQuality: -1 })]) {
       expect(parseRubricSnapshot(bad as string)).toBe(null)
     }
+  })
+})
+
+describe('independenceShown', () => {
+  const metrics = {
+    totalMessages: 10, userMessages: 5, assistantMessages: 5, averagePromptLength: 80,
+    questionCount: 2, codeBlockCount: 4, userCodeBlocks: 0, errorMentions: 0,
+    iterationCount: 4, shortPromptCount: 0, longPromptCount: 0,
+  }
+  const highlights = { questions: 2, errors: 0, shortPrompts: 0, codeReviews: 0, longContexts: 0 }
+  const rewrite = {
+    verbatimPercentage: 20, studentFirstPercentage: 0, modifiedLines: 0,
+    addedLines: 0, removedLines: 0, assessment: 'significant-rewrite' as const,
+  }
+  const independence = (delegationCount?: number) =>
+    calculateDimensionScores({
+      metrics: { ...metrics, delegationCount },
+      highlights,
+      codeModification: rewrite,
+      rubricConfig: DEFAULT_RUBRIC_CONFIG,
+    }).independenceShown
+
+  it('drops for each request that handed work over, up to a cap', () => {
+    expect(independence(undefined)).toBe(95)
+    expect(independence(2)).toBe(85)
+    expect(independence(20)).toBe(65)
   })
 })

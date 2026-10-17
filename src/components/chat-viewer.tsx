@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { highlightChat, getHighlightClass, getHighlightBadge, type HighlightedMessage } from '@/lib/analyzer/highlighter'
-import type { ParsedChat } from '@/lib/parser/chatgpt'
+import { assistantCodeBlocks, type ParsedChat } from '@/lib/parser/chatgpt'
 import { User, Bot, MessageSquare } from 'lucide-react'
 
 interface ChatViewerProps {
@@ -94,7 +94,7 @@ function Message({ message }: { message: HighlightedMessage }) {
               {isUser ? 'Student' : 'AI Assistant'}
             </span>
             {badge && (
-              <Badge variant={badge.variant} className="text-xs">
+              <Badge variant={badge.variant} className="text-xs" title={message.highlightReason}>
                 {badge.label}
               </Badge>
             )}
@@ -102,7 +102,7 @@ function Message({ message }: { message: HighlightedMessage }) {
           <div className="text-sm">
             <MessageContent
               content={message.content}
-              codeBlocks={message.codeBlocks}
+              codeBlocks={message.role === 'assistant' ? assistantCodeBlocks(message) : message.codeBlocks}
             />
           </div>
         </div>

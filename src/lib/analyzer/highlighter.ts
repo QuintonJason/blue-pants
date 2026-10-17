@@ -8,14 +8,25 @@ import {
   isShortPrompt,
   type MessageSignals,
 } from './signals'
+import { classifyPrompts, type PromptIntent } from './intent'
 
-export type HighlightType = 'question' | 'error' | 'short-prompt' | 'code-review' | 'long-context' | null
+export type HighlightType =
+  | 'off-topic'
+  | 'delegation'
+  | 'question'
+  | 'error'
+  | 'short-prompt'
+  | 'code-review'
+  | 'long-context'
+  | null
 
 export interface HighlightedMessage extends ChatMessage {
   highlightType: HighlightType
   highlightReason?: string
   /** Every signal this message carries, not just the primary one shown as a badge. */
   signals: MessageSignals
+  /** What the request was for, judged with the assistant's reply in view. */
+  intent?: PromptIntent
 }
 
 /**
@@ -56,15 +67,24 @@ export function getHighlightType(message: ChatMessage): { type: HighlightType; r
  * Add highlight information to all messages in a chat
  */
 export function highlightChat(chat: ParsedChat): HighlightedMessage[] {
-  return chat.messages.map(message => {
-    const { type, reason } = getHighlightType(message)
+  const intents = classifyPrompts(chat)
+  return chat.messages.map((message, i) => {
+    const { type, reason } = intentHighlight(intents[i]) ?? getHighlightType(message)
     return {
       ...message,
       highlightType: type,
       highlightReason: reason,
       signals: getMessageSignals(message.role, message.content),
+      intent: intents[i],
     }
   })
+}
+
+/** Intent outranks the per-message badges: it's what a grader most needs to see. */
+function intentHighlight(intent: PromptIntent): { type: HighlightType; reason: string } | null {
+  if (intent.offTopic) return { type: 'off-topic', reason: 'Not about the code; left out of scoring' }
+  if (intent.delegation) return { type: 'delegation', reason: 'Handed a whole feature, page or file to the AI' }
+  return null
 }
 
 /**
@@ -96,6 +116,7 @@ export function getHighlightSummary(highlightedMessages: HighlightedMessage[]): 
   }
 
   for (const message of highlightedMessages) {
+    if (message.intent?.offTopic) continue
     // Fall back for messages built before signals were attached.
     const signals = message.signals ?? getMessageSignals(message.role, message.content)
     if (signals.isQuestion) summary.questions++
@@ -123,6 +144,10 @@ export function getHighlightClass(type: HighlightType): string {
       return 'highlight-question' // Same as questions (positive)
     case 'long-context':
       return '' // No special styling, just a note
+    case 'delegation':
+      return 'highlight-warning'
+    case 'off-topic':
+      return 'highlight-muted'
     default:
       return ''
   }
@@ -143,6 +168,10 @@ export function getHighlightBadge(type: HighlightType): { label: string; variant
       return { label: 'Review', variant: 'default' }
     case 'long-context':
       return { label: 'Detailed', variant: 'outline' }
+    case 'delegation':
+      return { label: 'Hand-off', variant: 'destructive' }
+    case 'off-topic':
+      return { label: 'Off-topic', variant: 'outline' }
     default:
       return null
   }

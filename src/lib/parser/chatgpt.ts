@@ -36,10 +36,13 @@ interface ChatGPTMessage {
   }
   content: {
     content_type: string
-    parts?: string[]
+    /** Pasted images arrive as objects among the strings. */
+    parts?: Array<string | Record<string, unknown>>
     text?: string
   }
   create_time?: number
+  /** 'all' for a visible reply; a tool name when the assistant is calling a tool. */
+  recipient?: string
   metadata?: Record<string, unknown>
 }
 
@@ -57,24 +60,72 @@ interface ChatGPTConversation {
   }>
 }
 
+const FENCED_CODE = /```(\w*)\n?([\s\S]*?)```/g
+
 /**
- * Extract code blocks from markdown-formatted text
+ * ChatGPT's newer replies wrap code in `<CodeBlock language="html" editable>`
+ * tags instead of markdown fences. Reading fences only missed every one of them:
+ * a site the assistant wrote whole was invisible to the independence check.
+ */
+const TAGGED_CODE = /<CodeBlock\b([^>]*)>\n?([\s\S]*?)<\/CodeBlock>/g
+
+/**
+ * Extract code blocks from a message, fenced or tagged, in order of appearance.
  */
 export function extractCodeBlocks(content: string): CodeBlock[] {
   const codeBlocks: CodeBlock[] = []
-  const codeBlockRegex = /```(\w*)\n?([\s\S]*?)```/g
 
-  let match
-  while ((match = codeBlockRegex.exec(content)) !== null) {
+  for (const match of Array.from(content.matchAll(FENCED_CODE))) {
     codeBlocks.push({
       language: match[1] || 'plaintext',
       code: match[2].trim(),
-      startIndex: match.index,
-      endIndex: match.index + match[0].length,
+      startIndex: match.index ?? 0,
+      endIndex: (match.index ?? 0) + match[0].length,
     })
   }
 
-  return codeBlocks
+  for (const match of Array.from(content.matchAll(TAGGED_CODE))) {
+    codeBlocks.push({
+      language: match[1].match(/\blanguage\s*=\s*"([^"]*)"/)?.[1] || 'plaintext',
+      code: match[2].trim(),
+      startIndex: match.index ?? 0,
+      endIndex: (match.index ?? 0) + match[0].length,
+    })
+  }
+
+  return codeBlocks.sort((a, b) => a.startIndex - b.startIndex)
+}
+
+/**
+ * An assistant message's code, re-read from its text. Chats are stored already
+ * parsed, so going back to the text lets a rescore pick up extraction fixes
+ * (like tagged code) without the original export being re-imported.
+ */
+export function assistantCodeBlocks(message: ChatMessage): CodeBlock[] {
+  return message.role === 'assistant' ? extractCodeBlocks(message.content) : []
+}
+
+const CODE_FILE = /\.(html?|css|scss|js|mjs|jsx|ts|tsx|py|java|c|cpp|cs|rb|php|go|rs|json|zip)$/i
+
+/**
+ * Code files the assistant handed over as downloads (`sandbox:/mnt/data/main.css`).
+ * Their contents never appear in the transcript, so they can't be compared with
+ * the final code; they're reported instead.
+ */
+export function extractCodeDownloads(content: string): string[] {
+  const links = Array.from(content.matchAll(/\]\((sandbox:[^)\s]+)\)/g), m => m[1])
+  return Array.from(new Set(links.filter(link => CODE_FILE.test(link))))
+}
+
+/** Message kinds that are never part of the visible conversation. */
+function isHiddenMessage(msg: ChatGPTMessage): boolean {
+  // Tool calls: image-generation prompts, code the assistant ran in its sandbox.
+  if (msg.recipient && msg.recipient !== 'all') return true
+  if (msg.metadata?.is_visually_hidden_from_conversation === true) return true
+  // Reasoning traces and other non-reply content types. Simpler exports omit the
+  // field entirely, and those messages are all visible.
+  const type = msg.content.content_type
+  return !!type && !['text', 'multimodal_text'].includes(type)
 }
 
 /**
@@ -133,10 +184,12 @@ export function parseConversation(conversation: ChatGPTConversation): ParsedChat
     if (!node.message) continue
     const msg = node.message
     if (msg.author.role === 'system' || msg.author.role === 'tool') continue
+    if (isHiddenMessage(msg)) continue
 
     let content = ''
     if (msg.content.parts && msg.content.parts.length > 0) {
-      content = msg.content.parts.join('\n')
+      // Joining an image object used to put "[object Object]" in the transcript.
+      content = msg.content.parts.map(part => (typeof part === 'string' ? part : '[image]')).join('\n')
     } else if (msg.content.text) {
       content = msg.content.text
     }
