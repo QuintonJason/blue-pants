@@ -23,7 +23,8 @@ export function extractAssistantCode(chat: ParsedChat): CodeBlock[] {
 }
 
 const CODE_LINE_PATTERNS: Array<[RegExp, string]> = [
-  [/<\/?[a-z][\w-]*(\s[^<>]*)?\/?>/i, 'html'],
+  // Chat exports sometimes escape tags as `\<div>`.
+  [/\\?<\/?[a-z!][\w-]*(\s[^<>]*)?\/?>/i, 'html'],
   [/^\s*[\w-]+\s*:\s*[^;]+;\s*$/, 'css'],
   [/^\s*[^{}]+\{\s*$/, 'css'],
   [/\b(const|let|var|function|return)\b|=>|document\.|\);\s*$/, 'javascript'],
@@ -50,6 +51,38 @@ export function detectUnfencedCode(content: string): CodeBlock | null {
 
   const language = Object.entries(votes).sort((a, b) => b[1] - a[1])[0][0]
   return { language, code: content.trim(), startIndex: 0, endIndex: content.length }
+}
+
+/**
+ * A student message with the code taken out: fenced or tagged blocks, and pasted
+ * lines that read as code when the message carries a paste.
+ *
+ * Length was meant to measure how well the student described their problem, but a
+ * 6,000-character paste with "what needs to change" on top scored as the most
+ * articulate message in the transcript. One student's average prompt was 381
+ * characters while their typical prompt was 45.
+ */
+export function ownWords(content: string): string {
+  let text = ''
+  let cursor = 0
+  for (const block of extractCodeBlocks(content)) {
+    text += content.slice(cursor, block.startIndex) + '\n'
+    cursor = block.endIndex
+  }
+  text += content.slice(cursor)
+
+  // Everything from the first pasted code line to the last is the paste, prose
+  // between tags included: a pasted page's paragraphs aren't the student explaining.
+  if (detectUnfencedCode(text)) {
+    const lines = text.split('\n')
+    const isCode = lines.map(line => CODE_LINE_PATTERNS.some(([pattern]) => pattern.test(line)))
+    const first = isCode.indexOf(true)
+    const last = isCode.lastIndexOf(true)
+    // "whats wrong with this html: <!doctype html>" opens the paste mid-line.
+    const lead = lines[first].slice(0, Math.max(lines[first].search(/\\?</), 0))
+    text = [...lines.slice(0, first), lead, ...lines.slice(last + 1)].join('\n')
+  }
+  return text.replace(/\s+/g, ' ').trim()
 }
 
 /**

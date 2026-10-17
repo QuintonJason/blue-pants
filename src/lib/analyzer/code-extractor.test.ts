@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { analyzeModifications, extractUserCode, findStudentFirstShingles } from './code-extractor'
+import { analyzeModifications, extractUserCode, findStudentFirstShingles, ownWords } from './code-extractor'
 import { chat, message } from './fixtures'
 
 const AI_CODE = [
@@ -178,5 +178,33 @@ describe('extractUserCode', () => {
     ].join('\n')))
 
     expect(extractUserCode(story)).toHaveLength(0)
+  })
+})
+
+describe('ownWords', () => {
+  it('drops a pasted page, prose between its tags included', () => {
+    const paste = [
+      'whats wrong with this html: <!doctype html>',
+      '<html lang="en">',
+      '<body>',
+      '  <p>',
+      '    A long paragraph of the student\'s story that sits between tags.',
+      '  </p>',
+      '</body>',
+      '</html>',
+      'the footer is gone',
+    ].join('\n')
+    expect(ownWords(paste)).toBe('whats wrong with this html: the footer is gone')
+  })
+
+  it('drops escaped tags, fenced and tagged blocks', () => {
+    expect(ownWords('take the html so i can copy\n\\<div>\n\\<p>hi\\</p>\n\\</div>')).toBe('take the html so i can copy')
+    expect(ownWords('fix this ```css\na { color: red; }\n``` please')).toBe('fix this please')
+    expect(ownWords('<CodeBlock language="js">\nlet a\n</CodeBlock>')).toBe('')
+  })
+
+  it('leaves ordinary prose alone', () => {
+    const prose = 'I want the nav to sit over the banner; how do I do that?'
+    expect(ownWords(prose)).toBe(prose)
   })
 })

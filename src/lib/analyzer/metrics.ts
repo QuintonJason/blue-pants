@@ -7,13 +7,13 @@
 
 import { ParsedChat, assistantCodeBlocks, extractCodeDownloads } from '../parser/chatgpt'
 import { ComputedMetrics } from '../db/schema'
-import { extractUserCode } from './code-extractor'
+import { extractUserCode, ownWords } from './code-extractor'
 import { classifyPrompts } from './intent'
 import {
-  LONG_CONTEXT_THRESHOLD,
   isAcknowledgment,
   isCodeReviewRequest,
   isErrorDiscussion,
+  isLongContext,
   isQuestion,
   isShortPrompt,
 } from './signals'
@@ -83,7 +83,8 @@ function rawCounts(chat: ParsedChat): RawCounts {
     totalMessages: chat.messages.length,
     userMessages: userMessages.length,
     assistantMessages: assistantMessages.length,
-    userPromptChars: userMessages.reduce((sum, m) => sum + (m.content || '').length, 0),
+    // The student's own words: averaging pasted code in rewarded pasting, not explaining.
+    userPromptChars: userMessages.reduce((sum, m) => sum + ownWords(m.content || '').length, 0),
     questionCount: userMessages.filter(m => isQuestion(m.content)).length,
     codeBlockCount: assistantMessages.reduce((sum, m) => sum + assistantCodeBlocks(m).length, 0),
     userCodeBlocks: extractUserCode({ ...chat, messages: userMessages }).length,
@@ -94,9 +95,7 @@ function rawCounts(chat: ParsedChat): RawCounts {
     // The same definition the highlighter uses; this counted every message under
     // the threshold, acknowledgments and questions included.
     shortPromptCount: userMessages.filter(m => isShortPrompt(m.content)).length,
-    longPromptCount: userMessages.filter(
-      m => (m.content || '').length > LONG_CONTEXT_THRESHOLD
-    ).length,
+    longPromptCount: userMessages.filter(m => isLongContext(m.content)).length,
     offTopicCount: offTopic.filter(Boolean).length,
     delegationCount: intents.filter(intent => intent.delegation).length,
     aiCodeDownloads: new Set(assistantMessages.flatMap(m => extractCodeDownloads(m.content))).size,

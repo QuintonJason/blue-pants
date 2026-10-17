@@ -12,6 +12,8 @@
  * display pick a primary type; callers that count evidence count each separately.
  */
 
+import { ownWords } from './code-extractor'
+
 export const SHORT_PROMPT_THRESHOLD = 50 // characters
 export const LONG_CONTEXT_THRESHOLD = 500 // characters
 
@@ -111,8 +113,9 @@ export function isCodeReviewRequest(content: string | undefined | null): boolean
   return !!content && matchesAny(content, CODE_REVIEW_PATTERNS)
 }
 
+/** Detailed context in the student's own words; pasted code doesn't count toward it. */
 export function isLongContext(content: string | undefined | null): boolean {
-  return !!content && content.length > LONG_CONTEXT_THRESHOLD
+  return !!content && ownWords(content).length > LONG_CONTEXT_THRESHOLD
 }
 
 /** How much substance may follow an acknowledgment before it counts as content. */
