@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { CodeUpload } from '@/components/code-upload'
 import {
   ArrowLeft,
   Upload,
@@ -289,15 +290,16 @@ export default function SubmitPage() {
               </CardTitle>
               <CardDescription>
                 {submissionMode === 'code_only'
-                  ? "Paste the student's submitted code. It will be scanned for code-based AI-likelihood signals."
-                  : "Paste the student's final submitted code. This will be compared against AI-generated code to assess independence."}
+                  ? "Upload or paste the student's submitted code. It will be scanned for code-based AI-likelihood signals."
+                  : "Upload or paste the student's final submitted code. This will be compared against AI-generated code to assess independence."}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <CodeUpload onBundle={setCodeContent} />
               <Textarea
                 value={codeContent}
                 onChange={(e) => setCodeContent(e.target.value)}
-                placeholder="Paste the student's final code here..."
+                placeholder="...or paste the student's final code here"
                 rows={15}
                 className="font-mono text-sm"
               />
