@@ -4,11 +4,14 @@ import { useMemo } from 'react'
 import { diffLines, Change } from 'diff'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { analyzeModifications, type ModificationAnalysis } from '@/lib/analyzer/code-extractor'
+import { analyzeModifications, findStudentFirstShingles, type ModificationAnalysis } from '@/lib/analyzer/code-extractor'
+import type { ParsedChat } from '@/lib/parser/chatgpt'
 
 interface CodeDiffProps {
   aiCode: string
   finalCode: string
+  /** The transcripts, so code the student wrote first is credited as in scoring. */
+  chats?: ParsedChat[]
   className?: string
 }
 
@@ -79,6 +82,11 @@ function ModificationSummary({ analysis }: { analysis: ModificationAnalysis }) {
       <span className="text-sm text-muted-foreground">
         {Math.round(analysis.verbatimPercentage)}% unchanged
       </span>
+      {analysis.studentFirstPercentage >= 1 && (
+        <span className="text-sm text-muted-foreground">
+          {Math.round(analysis.studentFirstPercentage)}% the student pasted before the AI repeated it
+        </span>
+      )}
       <span className="text-sm text-green-600">
         +{analysis.addedLines} added
       </span>
@@ -89,14 +97,14 @@ function ModificationSummary({ analysis }: { analysis: ModificationAnalysis }) {
   )
 }
 
-export function CodeDiff({ aiCode, finalCode, className }: CodeDiffProps) {
+export function CodeDiff({ aiCode, finalCode, chats, className }: CodeDiffProps) {
   const diff = useMemo(() => {
     return diffLines(aiCode, finalCode)
   }, [aiCode, finalCode])
 
   const analysis = useMemo(() => {
-    return analyzeModifications(aiCode, finalCode)
-  }, [aiCode, finalCode])
+    return analyzeModifications(aiCode, finalCode, chats && findStudentFirstShingles(chats))
+  }, [aiCode, finalCode, chats])
 
   let lineNumber = 1
 

@@ -12,6 +12,8 @@
  * display pick a primary type; callers that count evidence count each separately.
  */
 
+import { ownWords } from './code-extractor'
+
 export const SHORT_PROMPT_THRESHOLD = 50 // characters
 export const LONG_CONTEXT_THRESHOLD = 500 // characters
 
@@ -27,10 +29,17 @@ const QUESTION_PATTERNS = [
   /\bi (don't|do not) understand\b/i,
 ]
 
+/** Things a page or script visibly fails to do: "the image isnt showing". */
+const SYMPTOM = String.raw`(work|show|load|display|appear|submit|disappear|respond|render|update|open|clos)\w*|com(e|es|ing) up`
+
 /**
  * Explicit failure vocabulary only. The previous list included `null`, `undefined`,
  * `fix`, `wrong` and `mistake`, which occur constantly in ordinary programming talk
  * and inflated the debugging signal for students who never debugged anything.
+ *
+ * Students rarely type apostrophes, so "isnt" and "doesnt" count the same as the
+ * spelled-out forms. Missing them dropped a 122-message debugging transcript to a
+ * single error mention.
  */
 const ERROR_PATTERNS = [
   /\berrors?\b/i,
@@ -45,6 +54,12 @@ const ERROR_PATTERNS = [
   /\bproblems?\b/i,
   /\bissues?\b/i,
   /\b(doesn't|does not|isn't|is not|won't|will not|not) work(ing)?\b/i,
+  // "its not disappearing", "profiles arent coming up"
+  new RegExp(String.raw`\b(not|wont|cannot)\s+(${SYMPTOM})\b`, 'i'),
+  // "why isnt the header image showing"
+  new RegExp(String.raw`\b(isn'?t|doesn'?t|aren'?t|won'?t|wont|can'?t)\b[^.?!\n]{0,40}\b(${SYMPTOM})\b`, 'i'),
+  /\bstruggling\b/i,
+  /\bwhat('?s| is| could be) wrong\b/i,
 ]
 
 const CODE_REVIEW_PATTERNS = [
@@ -57,6 +72,12 @@ const CODE_REVIEW_PATTERNS = [
   /\bthoughts on\b/i,
   /\bany (issues|problems|bugs)\b/i,
   /\b(check|look at|critique)\b[^.?!]*\bcode\b/i,
+  // Asking the assistant to judge code the student has: "this is my css, whats wrong with it"
+  /\bwhat'?s wrong with (this|my|it|the)\b/i,
+  /\b(do|should) i (keep|need|remove|delete|change)\b/i,
+  /\bcan i (not keep|remove|delete|get rid of|drop)\b/i,
+  /\b(does|do|is|are) (my|this|these|the)\b[^?.!\n]{0,60}\b(follow|meet|correct|valid)\b/i,
+  /\bwhat (here )?needs to (change|be changed|be fixed)\b/i,
 ]
 
 /** Openers that carry no content of their own, e.g. "thanks", "ok, got it". */
@@ -92,8 +113,9 @@ export function isCodeReviewRequest(content: string | undefined | null): boolean
   return !!content && matchesAny(content, CODE_REVIEW_PATTERNS)
 }
 
+/** Detailed context in the student's own words; pasted code doesn't count toward it. */
 export function isLongContext(content: string | undefined | null): boolean {
-  return !!content && content.length > LONG_CONTEXT_THRESHOLD
+  return !!content && ownWords(content).length > LONG_CONTEXT_THRESHOLD
 }
 
 /** How much substance may follow an acknowledgment before it counts as content. */
@@ -127,10 +149,20 @@ export function isAcknowledgment(content: string | undefined | null): boolean {
   return remainder.length <= ACKNOWLEDGMENT_REMAINDER_MAX
 }
 
+/**
+ * A terse instruction ("make it blue"). Short questions are excluded: "is head
+ * different from header" is the student checking their understanding, and
+ * penalising it as a low-effort prompt punished the most engaged students.
+ */
 export function isShortPrompt(content: string | undefined | null): boolean {
   if (!content) return false
   const length = content.length
-  return length > 0 && length < SHORT_PROMPT_THRESHOLD && !isAcknowledgment(content)
+  return (
+    length > 0 &&
+    length < SHORT_PROMPT_THRESHOLD &&
+    !isAcknowledgment(content) &&
+    !isQuestion(content)
+  )
 }
 
 export interface MessageSignals {

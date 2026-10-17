@@ -10,7 +10,10 @@ import {
   Bug,
   RefreshCw,
   AlertTriangle,
-  FileText
+  FileText,
+  Hand,
+  Download,
+  EyeOff
 } from 'lucide-react'
 import type { ComputedMetrics } from '@/lib/db/schema'
 
@@ -127,6 +130,35 @@ export function MetricsPanel({ metrics, className }: MetricsPanelProps) {
             value={metrics.shortPromptCount}
             description={`${shortPromptRate}% of messages`}
             variant={shortPromptRate > 30 ? 'danger' : shortPromptRate > 15 ? 'warning' : 'default'}
+          />
+        )}
+
+        {(metrics.delegationCount ?? 0) > 0 && (
+          <MetricItem
+            icon={<Hand className="w-4 h-4 text-red-500" />}
+            label="Hand-offs"
+            value={metrics.delegationCount ?? 0}
+            description="Whole features, pages or files requested from the AI"
+            variant={(metrics.delegationCount ?? 0) >= 3 ? 'danger' : 'warning'}
+          />
+        )}
+
+        {(metrics.aiCodeDownloads ?? 0) > 0 && (
+          <MetricItem
+            icon={<Download className="w-4 h-4 text-amber-500" />}
+            label="AI Code Downloads"
+            value={metrics.aiCodeDownloads ?? 0}
+            description="Code files the AI handed over; not in the transcript, so the code comparison can't see them"
+            variant="warning"
+          />
+        )}
+
+        {(metrics.offTopicCount ?? 0) > 0 && (
+          <MetricItem
+            icon={<EyeOff className="w-4 h-4 text-muted-foreground" />}
+            label="Off-topic Requests"
+            value={metrics.offTopicCount ?? 0}
+            description="Image or writing requests, left out of the counts above"
           />
         )}
 

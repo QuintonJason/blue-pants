@@ -5,16 +5,17 @@
  * to assess AI collaboration quality.
  */
 
-import { ParsedChat } from '../parser/chatgpt'
+import { ParsedChat, assistantCodeBlocks, extractCodeDownloads } from '../parser/chatgpt'
 import { ComputedMetrics } from '../db/schema'
-import { extractUserCode } from './code-extractor'
+import { extractUserCode, ownWords } from './code-extractor'
+import { classifyPrompts } from './intent'
 import {
-  LONG_CONTEXT_THRESHOLD,
-  SHORT_PROMPT_THRESHOLD,
   isAcknowledgment,
   isCodeReviewRequest,
   isErrorDiscussion,
+  isLongContext,
   isQuestion,
+  isShortPrompt,
 } from './signals'
 
 /**
@@ -27,7 +28,7 @@ import {
  * follow-up and then latched, so an entire multi-turn refinement collapsed to a
  * count of 1 while a single terse reply also scored 1.
  */
-function countIterations(messages: ParsedChat['messages']): number {
+function countIterations(messages: ParsedChat['messages'], offTopic: boolean[]): number {
   let iterations = 0
 
   for (let i = 1; i < messages.length; i++) {
@@ -35,6 +36,7 @@ function countIterations(messages: ParsedChat['messages']): number {
     const previous = messages[i - 1]
 
     if (current.role !== 'user' || previous.role !== 'assistant') continue
+    if (offTopic[i]) continue
 
     const content = (current.content || '').trim()
     if (!content) continue
@@ -64,30 +66,39 @@ interface RawCounts {
   iterationCount: number
   shortPromptCount: number
   longPromptCount: number
+  offTopicCount: number
+  delegationCount: number
+  aiCodeDownloads: number
 }
 
 function rawCounts(chat: ParsedChat): RawCounts {
-  const userMessages = chat.messages.filter(m => m.role === 'user')
+  const intents = classifyPrompts(chat)
+  const offTopic = intents.map(intent => intent.offTopic)
+  // Off-topic requests (editing an image, rewriting a story) say nothing about how
+  // the student worked on the code, so every collaboration count leaves them out.
+  const userMessages = chat.messages.filter((m, i) => m.role === 'user' && !offTopic[i])
   const assistantMessages = chat.messages.filter(m => m.role === 'assistant')
 
   return {
     totalMessages: chat.messages.length,
     userMessages: userMessages.length,
     assistantMessages: assistantMessages.length,
-    userPromptChars: userMessages.reduce((sum, m) => sum + (m.content || '').length, 0),
+    // The student's own words: averaging pasted code in rewarded pasting, not explaining.
+    userPromptChars: userMessages.reduce((sum, m) => sum + ownWords(m.content || '').length, 0),
     questionCount: userMessages.filter(m => isQuestion(m.content)).length,
-    codeBlockCount: assistantMessages.reduce((sum, m) => sum + m.codeBlocks.length, 0),
-    userCodeBlocks: extractUserCode(chat).length,
+    codeBlockCount: assistantMessages.reduce((sum, m) => sum + assistantCodeBlocks(m).length, 0),
+    userCodeBlocks: extractUserCode({ ...chat, messages: userMessages }).length,
     // Student messages only: the assistant explaining an error is not the student
     // debugging, and counting both double-counted every debugging exchange.
     errorMentions: userMessages.filter(m => isErrorDiscussion(m.content)).length,
-    iterationCount: countIterations(chat.messages),
-    shortPromptCount: userMessages.filter(
-      m => (m.content || '').length < SHORT_PROMPT_THRESHOLD
-    ).length,
-    longPromptCount: userMessages.filter(
-      m => (m.content || '').length > LONG_CONTEXT_THRESHOLD
-    ).length,
+    iterationCount: countIterations(chat.messages, offTopic),
+    // The same definition the highlighter uses; this counted every message under
+    // the threshold, acknowledgments and questions included.
+    shortPromptCount: userMessages.filter(m => isShortPrompt(m.content)).length,
+    longPromptCount: userMessages.filter(m => isLongContext(m.content)).length,
+    offTopicCount: offTopic.filter(Boolean).length,
+    delegationCount: intents.filter(intent => intent.delegation).length,
+    aiCodeDownloads: new Set(assistantMessages.flatMap(m => extractCodeDownloads(m.content))).size,
   }
 }
 
@@ -112,6 +123,9 @@ function finalize(parts: RawCounts[]): ComputedMetrics {
     iterationCount: sum(c => c.iterationCount),
     shortPromptCount: sum(c => c.shortPromptCount),
     longPromptCount: sum(c => c.longPromptCount),
+    offTopicCount: sum(c => c.offTopicCount),
+    delegationCount: sum(c => c.delegationCount),
+    aiCodeDownloads: sum(c => c.aiCodeDownloads),
   }
 }
 

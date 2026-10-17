@@ -57,6 +57,31 @@ describe('errorMentions', () => {
   })
 })
 
+describe('averagePromptLength', () => {
+  it("measures the student's own words, not code they pasted", () => {
+    const page = Array.from({ length: 40 }, (_, i) => `<p class="row-${i}">Row ${i}</p>`).join('\n')
+    const metrics = computeMetrics(chat(
+      message('user', `what needs to change here\n${page}`),
+      message('assistant', 'Close the div.'),
+    ))
+    expect(metrics.averagePromptLength).toBe('what needs to change here'.length)
+    expect(metrics.longPromptCount).toBe(0)
+  })
+})
+
+describe('shortPromptCount', () => {
+  it('counts terse instructions, not questions or acknowledgments', () => {
+    const metrics = computeMetrics(chat(
+      message('user', 'more dramatic'),
+      message('assistant', 'Sure.'),
+      message('user', 'does css apply to all pages automatically'),
+      message('assistant', 'Yes.'),
+      message('user', 'thanks'),
+    ))
+    expect(metrics.shortPromptCount).toBe(1)
+  })
+})
+
 describe('computeAggregateMetrics', () => {
   it('weights average prompt length by message count, not by chat', () => {
     // Mean-of-means: one long prompt in a one-message chat used to count as much

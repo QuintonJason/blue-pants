@@ -60,6 +60,20 @@ describe('isErrorDiscussion', () => {
     }
   })
 
+  it('accepts symptom reports, with or without apostrophes', () => {
+    for (const text of [
+      'why isnt this working',
+      'why isnt the header image showing?',
+      'its not disappearing',
+      'profiles arent coming up when i click their name',
+      'my form still isnt submitting properly',
+      'this is what it looks like and im struggling to fix it',
+      'what could be wrong with the bg?',
+    ]) {
+      expect(isErrorDiscussion(text), text).toBe(true)
+    }
+  })
+
   it('ignores vocabulary that is ordinary in code talk', () => {
     // `null`, `undefined`, `fix`, `wrong` and `mistake` used to count as debugging,
     // so a student who never debugged anything still scored for it.
@@ -68,6 +82,8 @@ describe('isErrorDiscussion', () => {
       'Can you fix the alignment to be centered',
       'Is a wrong guess better than no guess',
       'I want to avoid any mistake in the markup',
+      'Why does this work?',
+      'show me how to add a favicon',
     ]) {
       expect(isErrorDiscussion(text), text).toBe(false)
     }
@@ -88,8 +104,21 @@ describe('isCodeReviewRequest', () => {
     }
   })
 
+  it('accepts asks to judge code the student already has', () => {
+    for (const text of [
+      'this is my css, whats wrong with it',
+      'do i keep this?',
+      'can i not keep this? .cat-card { width: 17rem; }',
+      'so far does my website follow these rules',
+      'what here needs to change?',
+    ]) {
+      expect(isCodeReviewRequest(text), text).toBe(true)
+    }
+  })
+
   it('does not fire on unrelated prose', () => {
     expect(isCodeReviewRequest('Build a card component')).toBe(false)
+    expect(isCodeReviewRequest('is head different from header')).toBe(false)
   })
 })
 
@@ -112,6 +141,12 @@ describe('length signals', () => {
     expect(isShortPrompt('thanks')).toBe(false)
     expect(isShortPrompt('')).toBe(false)
     expect(isShortPrompt('x'.repeat(80))).toBe(false)
+  })
+
+  it('does not count short questions as low-effort prompts', () => {
+    expect(isShortPrompt('is head different from header')).toBe(false)
+    expect(isShortPrompt('when to add a .. in front of a href')).toBe(false)
+    expect(isShortPrompt('more dramatic')).toBe(true)
   })
 
   it('classifies long context', () => {

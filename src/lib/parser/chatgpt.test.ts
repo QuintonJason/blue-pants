@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseChatGPTExport, smartParse, extractCodeBlocks } from './chatgpt'
+import { parseChatGPTExport, parseConversation, smartParse, extractCodeBlocks, extractCodeDownloads } from './chatgpt'
 
 /** A node in the export's `mapping` tree. */
 function node(id: string, parent: string | undefined, children: string[], role?: string, text?: string) {
@@ -126,5 +126,58 @@ describe('extractCodeBlocks', () => {
 
   it('returns nothing when there is no code', () => {
     expect(extractCodeBlocks('just prose')).toHaveLength(0)
+  })
+})
+
+describe('extractCodeBlocks: tagged code', () => {
+  it("reads ChatGPT's <CodeBlock> tags alongside fences, in order", () => {
+    const content = [
+      'First:',
+      '<CodeBlock language="html" editable>',
+      '<h1>Hi</h1>',
+      '</CodeBlock>',
+      'Then:',
+      '```css',
+      'h1 { color: red; }',
+      '```',
+    ].join('\n')
+
+    const blocks = extractCodeBlocks(content)
+    expect(blocks.map(b => [b.language, b.code])).toEqual([
+      ['html', '<h1>Hi</h1>'],
+      ['css', 'h1 { color: red; }'],
+    ])
+  })
+})
+
+describe('extractCodeDownloads', () => {
+  it('lists code files handed over as downloads, not images', () => {
+    const content = 'Here: [CSS](sandbox:/mnt/data/main.css) and [cat](sandbox:/mnt/data/cat.png), again [CSS](sandbox:/mnt/data/main.css)'
+    expect(extractCodeDownloads(content)).toEqual(['sandbox:/mnt/data/main.css'])
+  })
+})
+
+describe('parseConversation: what counts as the conversation', () => {
+  function message(id: string, role: string, content: Record<string, unknown>, extra: Record<string, unknown> = {}) {
+    return { id, author: { role }, content, ...extra }
+  }
+
+  const parsed = parseConversation({
+    id: 'c', title: 't', create_time: 1700000000,
+    mapping: {
+      u: { id: 'u', children: ['tool'], message: message('u', 'user', { content_type: 'multimodal_text', parts: [{ asset_pointer: 'file-1' }, 'what is this'] }) },
+      tool: { id: 'tool', parent: 'u', children: ['think'], message: message('tool', 'assistant', { content_type: 'code', text: '{"prompt":"draw a cat"}' }, { recipient: 'image_gen' }) },
+      think: { id: 'think', parent: 'tool', children: ['hidden'], message: message('think', 'assistant', { content_type: 'thoughts', thoughts: [] }) },
+      hidden: { id: 'hidden', parent: 'think', children: ['a'], message: message('hidden', 'assistant', { content_type: 'text', parts: ['internal'] }, { metadata: { is_visually_hidden_from_conversation: true } }) },
+      a: { id: 'a', parent: 'hidden', children: [], message: message('a', 'assistant', { content_type: 'text', parts: ['A cat.'] }, { recipient: 'all' }) },
+    },
+  } as unknown as Parameters<typeof parseConversation>[0])
+
+  it('drops tool calls, reasoning and hidden messages', () => {
+    expect(parsed.messages.map(m => m.content)).toEqual(['[image]\nwhat is this', 'A cat.'])
+  })
+
+  it('shows pasted images as a placeholder, not [object Object]', () => {
+    expect(parsed.messages[0].content).not.toContain('[object Object]')
   })
 })

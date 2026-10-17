@@ -18,24 +18,20 @@ import {
   Loader2,
   Users,
   FileJson,
-  Code
+  Code,
+  FolderOpen
 } from 'lucide-react'
+import { basename, bundleProject, type ProjectFile } from '@/lib/upload/project-bundle'
+import { acceptBatchFile, matchBatchRow, type BatchRow } from '@/lib/upload/batch-match'
+import { readDataTransfer, readFileList } from '@/lib/upload/read-upload'
 
-interface CsvRow {
-  student_name: string
-  chat_file: string
-  code_file?: string
-}
-
-interface FileData {
-  name: string
-  content: string
-}
+// Not in React's input typings, but supported by every current browser.
+const folderPickerProps = { webkitdirectory: '' } as React.InputHTMLAttributes<HTMLInputElement>
 
 interface MatchedSubmission {
   studentName: string
-  chatFiles: FileData[]
-  codeFile: FileData | null
+  chatFiles: ProjectFile[]
+  codeFiles: ProjectFile[]
   status: 'ready' | 'missing_chat' | 'missing_code' | 'imported' | 'error'
   errorMessage?: string
 }
@@ -47,7 +43,7 @@ export default function BatchImportPage() {
 
   const [assignment, setAssignment] = useState<{ name: string } | null>(null)
   const [csvText, setCsvText] = useState('')
-  const [files, setFiles] = useState<FileData[]>([])
+  const [files, setFiles] = useState<ProjectFile[]>([])
   const [matches, setMatches] = useState<MatchedSubmission[]>([])
   const [importing, setImporting] = useState(false)
   const [importResults, setImportResults] = useState<{ success: number; failed: number } | null>(null)
@@ -85,42 +81,28 @@ export default function BatchImportPage() {
     }
 
     // Parse rows
-    const rows: CsvRow[] = []
+    const rows: BatchRow[] = []
     for (let i = 1; i < lines.length; i++) {
       const cols = parseCSVLine(lines[i])
       if (cols.length > Math.max(nameIdx, chatIdx)) {
         rows.push({
-          student_name: cols[nameIdx]?.trim() || '',
-          chat_file: cols[chatIdx]?.trim() || '',
-          code_file: codeIdx !== -1 ? cols[codeIdx]?.trim() : undefined,
+          studentName: cols[nameIdx]?.trim() || '',
+          chatRef: cols[chatIdx]?.trim() || '',
+          codeRef: codeIdx !== -1 ? cols[codeIdx]?.trim() : undefined,
         })
       }
     }
 
     // Match with uploaded files
-    const matched: MatchedSubmission[] = rows.map(row => {
-      // Find chat files (might be comma-separated or multiple with same prefix)
-      const chatFileNames = row.chat_file.split(';').map(f => f.trim()).filter(Boolean)
-      const chatFiles = chatFileNames
-        .map(name => files.find(f => f.name === name || f.name.includes(name)))
-        .filter((f): f is FileData => f !== undefined)
-
-      // Find code file
-      const codeFile = row.code_file
-        ? files.find(f => f.name === row.code_file || f.name.includes(row.code_file || ''))
-        : null
+    const matched: MatchedSubmission[] = rows.filter(row => row.studentName).map(row => {
+      const { chatFiles, codeFiles, missingCode } = matchBatchRow(row, files)
 
       let status: MatchedSubmission['status'] = 'ready'
       if (chatFiles.length === 0) status = 'missing_chat'
-      else if (row.code_file && !codeFile) status = 'missing_code'
+      else if (missingCode) status = 'missing_code'
 
-      return {
-        studentName: row.student_name,
-        chatFiles,
-        codeFile: codeFile || null,
-        status,
-      }
-    }).filter(m => m.studentName)
+      return { studentName: row.studentName, chatFiles, codeFiles, status }
+    })
 
     setMatches(matched)
   }, [csvText, files])
@@ -130,35 +112,33 @@ export default function BatchImportPage() {
     parseCsvAndMatch()
   }, [parseCsvAndMatch])
 
-  // Handle file drop
+  // Folders and zips arrive as many files; a re-upload replaces files at the same path.
+  const addFiles = useCallback(async (read: Promise<{ files: ProjectFile[] }>) => {
+    try {
+      const { files: newFiles } = await read
+      setFiles(prev => {
+        const byPath = new Map(prev.map(f => [f.path, f]))
+        newFiles.forEach(f => byPath.set(f.path, f))
+        return Array.from(byPath.values())
+      })
+    } catch (e) {
+      console.error('Error reading upload:', e)
+    }
+  }, [])
+
   const handleFileDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
-    const droppedFiles = Array.from(e.dataTransfer.files)
-    processFiles(droppedFiles)
-  }, [])
+    addFiles(readDataTransfer(e.dataTransfer, acceptBatchFile))
+  }, [addFiles])
 
-  // Handle file input
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(e.target.files || [])
-    processFiles(selectedFiles)
-  }, [])
-
-  const processFiles = async (fileList: File[]) => {
-    const newFiles: FileData[] = []
-    for (const file of fileList) {
-      try {
-        const content = await file.text()
-        newFiles.push({ name: file.name, content })
-      } catch (e) {
-        console.error(`Error reading ${file.name}:`, e)
-      }
-    }
-    setFiles(prev => [...prev, ...newFiles])
-  }
+    if (e.target.files) addFiles(readFileList(e.target.files, acceptBatchFile))
+    e.target.value = ''
+  }, [addFiles])
 
   // Remove a file
-  const removeFile = (name: string) => {
-    setFiles(prev => prev.filter(f => f.name !== name))
+  const removeFile = (path: string) => {
+    setFiles(prev => prev.filter(f => f.path !== path))
   }
 
   // Import all matched submissions using batch API
@@ -172,7 +152,7 @@ export default function BatchImportPage() {
       const submissionsData = readyMatches.map(match => ({
         studentName: match.studentName,
         chatExports: match.chatFiles.map(f => f.content),
-        finalCode: match.codeFile?.content || null,
+        finalCode: match.codeFiles.length > 0 ? bundleProject(match.codeFiles).code : null,
       }))
 
       const res = await fetch(`/api/assignments/${assignmentId}/batch-import`, {
@@ -265,7 +245,8 @@ export default function BatchImportPage() {
                   CSV Mapping
                 </CardTitle>
                 <CardDescription>
-                  Paste or upload a CSV with columns: student_name, chat_file, code_file (optional)
+                  Paste or upload a CSV with columns: student_name, chat_file, code_file (optional).
+                  code_file can name a file, folder or zip; leave it blank to use a folder named after the student.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -309,7 +290,7 @@ export default function BatchImportPage() {
                   Files ({files.length})
                 </CardTitle>
                 <CardDescription>
-                  Drag and drop chat JSON files and code files here
+                  Drag and drop chat JSON files, code files, folders or zips here
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -321,10 +302,16 @@ export default function BatchImportPage() {
                   <input
                     type="file"
                     multiple
-                    accept=".json,.html,.css,.js,.txt"
                     onChange={handleFileInput}
                     className="hidden"
                     id="file-upload"
+                  />
+                  <input
+                    type="file"
+                    onChange={handleFileInput}
+                    className="hidden"
+                    id="folder-upload"
+                    {...folderPickerProps}
                   />
                   <label htmlFor="file-upload" className="cursor-pointer">
                     <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
@@ -332,8 +319,16 @@ export default function BatchImportPage() {
                       Drop files here or click to browse
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Supports .json, .html, .css, .js, .txt
+                      Chat .json exports, code files, folders and .zip. Images and node_modules are skipped.
                     </p>
+                  </label>
+                  <label htmlFor="folder-upload" className="inline-block mt-3">
+                    <Button variant="outline" size="sm" asChild>
+                      <span className="cursor-pointer">
+                        <FolderOpen className="w-4 h-4 mr-2" />
+                        Choose folder
+                      </span>
+                    </Button>
                   </label>
                 </div>
 
@@ -341,22 +336,23 @@ export default function BatchImportPage() {
                   <div className="mt-4 space-y-2 max-h-[200px] overflow-y-auto">
                     {files.map((file) => (
                       <div
-                        key={file.name}
+                        key={file.path}
                         className="flex items-center justify-between p-2 bg-slate-50 rounded text-sm"
                       >
-                        <div className="flex items-center gap-2">
-                          {file.name.endsWith('.json') ? (
-                            <FileJson className="w-4 h-4 text-blue-500" />
+                        <div className="flex items-center gap-2 min-w-0">
+                          {file.path.endsWith('.json') ? (
+                            <FileJson className="w-4 h-4 shrink-0 text-blue-500" />
                           ) : (
-                            <Code className="w-4 h-4 text-green-500" />
+                            <Code className="w-4 h-4 shrink-0 text-green-500" />
                           )}
-                          <span className="truncate max-w-[200px]">{file.name}</span>
+                          <span className="truncate" title={file.path}>{file.path}</span>
                         </div>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6"
-                          onClick={() => removeFile(file.name)}
+                          className="h-6 w-6 shrink-0"
+                          aria-label={`Remove ${file.path}`}
+                          onClick={() => removeFile(file.path)}
                         >
                           <X className="w-3 h-3" />
                         </Button>
@@ -447,12 +443,16 @@ export default function BatchImportPage() {
                           <div className="flex items-center gap-1">
                             <FileJson className="w-3 h-3" />
                             {match.chatFiles.length > 0
-                              ? match.chatFiles.map(f => f.name).join(', ')
+                              ? match.chatFiles.map(f => f.path).join(', ')
                               : 'No chat file found'}
                           </div>
                           <div className="flex items-center gap-1">
                             <Code className="w-3 h-3" />
-                            {match.codeFile ? match.codeFile.name : 'No code file'}
+                            {match.codeFiles.length === 0
+                              ? 'No code file'
+                              : match.codeFiles.length === 1
+                              ? match.codeFiles[0].path
+                              : `${match.codeFiles.length} files from ${commonFolder(match.codeFiles)}`}
                           </div>
                           {match.errorMessage && (
                             <div className="text-red-600">{match.errorMessage}</div>
@@ -515,6 +515,15 @@ export default function BatchImportPage() {
       </main>
     </div>
   )
+}
+
+// Folder the matched files share, for the preview summary
+function commonFolder(files: ProjectFile[]): string {
+  const dirs = files.map(f => f.path.slice(0, -basename(f.path).length - 1))
+  return dirs.reduce((a, b) => {
+    while (a && b !== a && !b.startsWith(`${a}/`)) a = a.slice(0, Math.max(a.lastIndexOf('/'), 0))
+    return a
+  }) || 'the upload'
 }
 
 // Helper function to parse CSV lines (handles quoted values)
