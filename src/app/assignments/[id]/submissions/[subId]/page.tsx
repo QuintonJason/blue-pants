@@ -377,6 +377,7 @@ export default function SubmissionReviewPage() {
                     <CodeDiff
                       aiCode={allAiCode}
                       finalCode={submission.finalCode || ''}
+                      chats={submission.parsedChats}
                     />
                   </CardContent>
                 </Card>

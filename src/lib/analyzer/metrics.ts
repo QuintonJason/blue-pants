@@ -10,11 +10,11 @@ import { ComputedMetrics } from '../db/schema'
 import { extractUserCode } from './code-extractor'
 import {
   LONG_CONTEXT_THRESHOLD,
-  SHORT_PROMPT_THRESHOLD,
   isAcknowledgment,
   isCodeReviewRequest,
   isErrorDiscussion,
   isQuestion,
+  isShortPrompt,
 } from './signals'
 
 /**
@@ -82,9 +82,9 @@ function rawCounts(chat: ParsedChat): RawCounts {
     // debugging, and counting both double-counted every debugging exchange.
     errorMentions: userMessages.filter(m => isErrorDiscussion(m.content)).length,
     iterationCount: countIterations(chat.messages),
-    shortPromptCount: userMessages.filter(
-      m => (m.content || '').length < SHORT_PROMPT_THRESHOLD
-    ).length,
+    // The same definition the highlighter uses; this counted every message under
+    // the threshold, acknowledgments and questions included.
+    shortPromptCount: userMessages.filter(m => isShortPrompt(m.content)).length,
     longPromptCount: userMessages.filter(
       m => (m.content || '').length > LONG_CONTEXT_THRESHOLD
     ).length,

@@ -10,7 +10,7 @@ import type { CodeBlock, ParsedChat } from '../parser/chatgpt'
 import type { ComputedMetrics, CodeSmellSignalResult, CurriculumScopeFlag, DimensionScores, RubricConfig } from '../db/schema'
 import { computeAggregateMetrics } from '../analyzer/metrics'
 import { getHighlightSummary, highlightChat } from '../analyzer/highlighter'
-import { analyzeModifications, getCodeSummary } from '../analyzer/code-extractor'
+import { analyzeModifications, findStudentFirstShingles, getCodeSummary } from '../analyzer/code-extractor'
 import { scoreAiLikelihood, CODE_SMELL_SCORER_VERSION } from '../analyzer/code-smell'
 import { checkCurriculumScope, validateCurriculumScope } from '../analyzer/curriculum-scope'
 import { calculateScores } from './rubric'
@@ -41,7 +41,9 @@ export function scoreSubmission(
   const allAiCode = codeSummaries.map(summary => summary.allCode).join('\n\n')
 
   const codeModification =
-    finalCode && allAiCode ? analyzeModifications(allAiCode, finalCode) : undefined
+    finalCode && allAiCode
+      ? analyzeModifications(allAiCode, finalCode, findStudentFirstShingles(parsedChats))
+      : undefined
 
   const { dimensionScores, totalScore } = calculateScores({
     metrics,

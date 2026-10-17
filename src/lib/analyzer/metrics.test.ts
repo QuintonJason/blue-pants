@@ -57,6 +57,19 @@ describe('errorMentions', () => {
   })
 })
 
+describe('shortPromptCount', () => {
+  it('counts terse instructions, not questions or acknowledgments', () => {
+    const metrics = computeMetrics(chat(
+      message('user', 'more dramatic'),
+      message('assistant', 'Sure.'),
+      message('user', 'does css apply to all pages automatically'),
+      message('assistant', 'Yes.'),
+      message('user', 'thanks'),
+    ))
+    expect(metrics.shortPromptCount).toBe(1)
+  })
+})
+
 describe('computeAggregateMetrics', () => {
   it('weights average prompt length by message count, not by chat', () => {
     // Mean-of-means: one long prompt in a one-message chat used to count as much
