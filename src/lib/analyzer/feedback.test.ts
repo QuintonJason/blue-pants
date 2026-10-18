@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { buildAiUseFeedback, classPatterns, feedbackToText, summarizeFindings, topFinding } from './feedback'
 import { chat, message } from './fixtures'
 import { messageAnchor } from './highlighter'
+import { computeMetrics } from './metrics'
 
 const SITE = Array.from({ length: 20 }, (_, i) => `<section class="part-${i}"><h2>Part ${i}</h2></section>`).join('\n')
 const PASTE = Array.from({ length: 6 }, (_, i) => `<p class="note-${i}">Note ${i}</p>`).join('\n')
@@ -167,5 +168,31 @@ describe('topFinding', () => {
   it('is null with nothing to work on, or nothing stored', () => {
     expect(topFinding(JSON.stringify({ strengths: [{ id: 'asks-questions', count: 3 }], improvements: [] }))).toBeNull()
     expect(topFinding(null)).toBeNull()
+  })
+})
+
+describe('summary counts against the metrics', () => {
+  it('states the full count when the summary counts fewer, so the two never disagree', () => {
+    const PAGE = Array.from({ length: 6 }, (_, i) => `<p class="n-${i}">${i}</p>`).join('\n')
+    const c = chat(
+      message('user', 'is head different from header'),
+      message('assistant', 'Yes.'),
+      message('user', 'does css apply to all pages'),
+      message('assistant', 'Only linked ones.'),
+      message('user', 'when do i use a class'),
+      message('assistant', 'For reuse.'),
+      message('user', `why isnt this working?\n${PAGE}`),
+      message('assistant', 'Close the tag.'),
+      message('user', 'the image isnt showing'),
+      message('assistant', 'Check the path.'),
+      message('user', 'my nav is not appearing'),
+      message('assistant', 'Check display.'),
+    )
+    const metrics = computeMetrics(c)
+    const feedback = buildAiUseFeedback([c], null)
+    const detail = (id: string) => feedback.strengths.find(p => p.id === id)!.detail
+
+    expect(detail('asks-questions')).toMatch(new RegExp(`^3 of your ${metrics.questionCount} questions were about`))
+    expect(detail('describes-bugs')).toMatch(new RegExp(`^2 of the ${metrics.errorMentions} times you reported a problem`))
   })
 })

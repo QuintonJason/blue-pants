@@ -151,6 +151,11 @@ export function buildAiUseFeedback(chats: ParsedChat[], finalCode: string | null
   const barePastes = sharedCode.filter(m => ownWords(m.content).length < BARE_PASTE_MAX_WORDS_CHARS)
   const isBarePaste = (m: LocatedMessage) => barePastes.includes(m)
 
+  // The summary counts narrower than the metrics (no questions over a paste or
+  // inside a hand-off, no bug reports that are only a paste), so it states the
+  // full count beside its own rather than leaving two numbers to disagree.
+  const allQuestions = counted.filter(m => m.signals.isQuestion).length
+  const allBugReports = counted.filter(m => m.signals.isErrorDiscussion).length
   const questions = counted.filter(m => m.signals.isQuestion && !m.intent?.delegation && !hasPaste(m))
   // "why isnt this working" over a pasted page reports a bug without describing
   // it, so it's coached under bare pastes rather than praised here.
@@ -176,7 +181,11 @@ export function buildAiUseFeedback(chats: ParsedChat[], finalCode: string | null
     strengths.push({
       id: 'asks-questions', count: questions.length,
       title: 'You ask questions to understand, not just to get code',
-      detail: `You asked ${questions.length} questions about how things work. That's using the AI as a tutor, which is how you learn the most from it.`,
+      detail: `${
+        questions.length < allQuestions
+          ? `${questions.length} of your ${allQuestions} questions were`
+          : `You asked ${questions.length} questions`
+      } about how things work. That's using the AI as a tutor, which is how you learn the most from it.`,
       examples: quote(questions),
     })
   }
@@ -184,7 +193,11 @@ export function buildAiUseFeedback(chats: ParsedChat[], finalCode: string | null
     strengths.push({
       id: 'describes-bugs', count: debugging.length,
       title: 'You work through bugs by describing what went wrong',
-      detail: `${times(debugging.length, true)} you described a specific problem you'd run into instead of asking for the whole thing again.`,
+      detail: `${
+        debugging.length < allBugReports
+          ? `${debugging.length} of the ${allBugReports} times you reported a problem, you described`
+          : `${times(debugging.length, true)} you described`
+      } what went wrong instead of asking for the whole thing again.`,
       examples: quote(debugging),
     })
   }

@@ -320,6 +320,11 @@ export function calculateScores(ctx: ScoringContext): {
 
 /**
  * Get score interpretation
+ *
+ * Driven by the total alone, so it describes the process in general terms and
+ * claims nothing about understanding: a 77% built from strong questioning and a
+ * 20% for independence used to read "Strong AI collaboration with clear
+ * understanding". weakDimensions() names what the total hides.
  */
 export function interpretScore(score: number): {
   label: string
@@ -329,32 +334,49 @@ export function interpretScore(score: number): {
   if (score >= 90) {
     return {
       label: 'Excellent',
-      description: 'Exceptional AI collaboration showing deep engagement',
+      description: 'Strong collaboration process across the rubric',
       color: 'text-green-600',
     }
   } else if (score >= 75) {
     return {
       label: 'Good',
-      description: 'Strong AI collaboration with clear understanding',
+      description: 'Solid collaboration process overall',
       color: 'text-blue-600',
     }
   } else if (score >= 60) {
     return {
       label: 'Satisfactory',
-      description: 'Adequate AI collaboration with room for improvement',
+      description: 'Adequate collaboration process, with clear gaps',
       color: 'text-yellow-600',
     }
   } else if (score >= 40) {
     return {
       label: 'Needs Improvement',
-      description: 'Limited engagement with AI assistance',
+      description: 'Limited engagement in the collaboration process',
       color: 'text-orange-600',
     }
   } else {
     return {
       label: 'Poor',
-      description: 'Minimal AI collaboration, possible copy-paste approach',
+      description: 'Little evidence of a collaboration process, possible copy-paste approach',
       color: 'text-red-600',
     }
   }
+}
+
+/** A dimension scoring below this is called out beside the total. */
+export const WEAK_DIMENSION_THRESHOLD = 50
+
+/**
+ * Weighted dimensions scoring below WEAK_DIMENSION_THRESHOLD, weakest first. A
+ * weighted average can be high while one dimension is very low; this keeps that
+ * dimension from disappearing behind the total.
+ */
+export function weakDimensions(
+  scores: DimensionScores,
+  rubricConfig: RubricConfig
+): Array<keyof DimensionScores> {
+  return (Object.keys(scores) as Array<keyof DimensionScores>)
+    .filter(key => rubricConfig[key] > 0 && scores[key] < WEAK_DIMENSION_THRESHOLD)
+    .sort((a, b) => scores[a] - scores[b])
 }
