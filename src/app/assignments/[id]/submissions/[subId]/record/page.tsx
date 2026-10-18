@@ -68,6 +68,10 @@ export default function GradeRecordPage() {
 
       <main className="container mx-auto max-w-3xl px-4 py-8 space-y-6 text-sm print:py-0">
         <div>
+          {/* Student data is seen only by the teacher; this page is what leaves the app, for an appeal. */}
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Confidential student record: share only with the student or for a grade review
+          </p>
           <h1 className="text-2xl font-bold">Grade record: {submission.studentName}</h1>
           <p className="text-muted-foreground">
             {assignment.name} · submitted {formatDateTime(submission.submittedAt)} · printed{' '}
