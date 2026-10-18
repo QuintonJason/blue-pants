@@ -27,6 +27,7 @@ import {
   Calendar,
   Trash2,
   AlertTriangle,
+  ScrollText,
   Eye,
   PenLine,
   Check,
@@ -283,6 +284,14 @@ export default function SubmissionReviewPage() {
             <div className="flex items-center gap-3">
               {rescoreNote && (
                 <span className="text-sm text-muted-foreground">{rescoreNote}</span>
+              )}
+              {submission.finalScore !== null && (
+                <Link href={`/assignments/${assignmentId}/submissions/${submissionId}/record`}>
+                  <Button variant="outline" title="A printable record of this grade and what it was given on, for an appeal">
+                    <ScrollText className="w-4 h-4 mr-2" />
+                    Grade record
+                  </Button>
+                </Link>
               )}
               <Button
                 variant="outline"

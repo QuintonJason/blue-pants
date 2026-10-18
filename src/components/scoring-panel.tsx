@@ -23,7 +23,7 @@ interface ScoringPanelProps {
   className?: string
 }
 
-const DIMENSION_LABELS: Record<keyof DimensionScores, string> = {
+export const DIMENSION_LABELS: Record<keyof DimensionScores, string> = {
   problemArticulation: 'Problem Articulation',
   iterationQuality: 'Iteration Quality',
   criticalEvaluation: 'Critical Evaluation',

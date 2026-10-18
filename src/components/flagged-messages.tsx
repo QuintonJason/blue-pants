@@ -8,11 +8,13 @@ import { Flag } from 'lucide-react'
 import { flaggedMessages, type IntentKind, type IntentOverrides } from '@/lib/analyzer/intent-overrides'
 import type { ParsedChat } from '@/lib/parser/chatgpt'
 import type { Submission } from '@/lib/db/schema'
+import { DELEGATION_PENALTY, DELEGATION_PENALTY_MAX } from '@/lib/scorer/rubric'
 
 const KIND_COPY: Record<IntentKind, { label: string; counts: string; overrule: string; restore: string }> = {
   delegation: {
     label: 'Hand-off',
-    counts: 'Costs 5 points of Independence',
+    // Not "costs 5 points": past the cap, one more or one fewer changes nothing.
+    counts: 'Counts against Independence',
     overrule: 'Not a hand-off',
     restore: 'Count as a hand-off',
   },
@@ -43,6 +45,7 @@ interface FlaggedMessagesProps {
  */
 export function FlaggedMessages({ submissionId, chats, overrides, onUpdated, onQuoteClick, className }: FlaggedMessagesProps) {
   const flagged = useMemo(() => flaggedMessages(chats, overrides), [chats, overrides])
+  const handOffs = flagged.filter(f => f.counted.delegation).length
   const [saving, setSaving] = useState<string | null>(null)
   const [error, setError] = useState('')
 
@@ -72,12 +75,19 @@ export function FlaggedMessages({ submissionId, chats, overrides, onUpdated, onQ
           Flagged messages
         </CardTitle>
         <CardDescription>
-          Found by wording, so check each one. Overrule any you disagree with and the
+          Found by wording, so check each one. Each hand-off takes {DELEGATION_PENALTY} points off
+          Independence, up to {DELEGATION_PENALTY_MAX}. Overrule any you disagree with and the
           suggestion updates.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {flagged.length === 0 && <p className="text-sm text-muted-foreground">Nothing was flagged.</p>}
+        {handOffs * DELEGATION_PENALTY > DELEGATION_PENALTY_MAX && (
+          <p className="text-xs text-muted-foreground">
+            {handOffs} hand-offs count, past the {DELEGATION_PENALTY_MAX}-point limit, so overruling one or
+            two may not change the suggestion.
+          </p>
+        )}
         {flagged.map(message => {
           const kinds = (Object.keys(KIND_COPY) as IntentKind[]).filter(
             kind => message.detected[kind] || message.counted[kind] || message.ruling?.[kind] !== undefined

@@ -222,8 +222,8 @@ function scoreDebuggingProcess(ctx: ScoringContext): number {
  * Based on: code modification analysis (if available)
  */
 /** Points off Independence per request that handed over a whole feature, page or file. */
-const DELEGATION_PENALTY = 5
-const DELEGATION_PENALTY_MAX = 30
+export const DELEGATION_PENALTY = 5
+export const DELEGATION_PENALTY_MAX = 30
 
 function scoreIndependenceShown(ctx: ScoringContext): number {
   const { codeModification, metrics } = ctx
