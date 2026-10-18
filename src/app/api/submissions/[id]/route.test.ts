@@ -137,3 +137,15 @@ describe('evidence fingerprints', () => {
     expect((await get(submission.id)).evidenceChangedSinceGrade).toBe(false)
   })
 })
+
+describe('PUT /api/submissions/[id]: grades far from the suggestion', () => {
+  it('requires notes for a grade 10 or more points from the suggestion', async () => {
+    const submission = await gradedSubmission()
+    const res = await PUT(jsonRequest({ finalScore: 85, teacherNotes: '' }, 'PUT'), routeParams(submission.id))
+    expect(res.status).toBe(400)
+    expect((await GET(new Request('http://localhost/test'), routeParams(submission.id)).then(r => r.json())).finalScore).toBeNull()
+
+    await saveGrade(submission.id, { finalScore: 85, teacherNotes: 'Strong reflection in class' })
+    await saveGrade(submission.id, { finalScore: 75, teacherNotes: '' })
+  })
+})

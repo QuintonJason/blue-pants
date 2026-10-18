@@ -8,8 +8,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Save, RotateCcw } from 'lucide-react'
-import { interpretScore, weakDimensions } from '@/lib/scorer/rubric'
+import { Save, RotateCcw, AlertCircle } from 'lucide-react'
+import { interpretScore, needsOverrideReason, weakDimensions } from '@/lib/scorer/rubric'
 import type { DimensionScores, RubricConfig } from '@/lib/db/schema'
 
 interface ScoringPanelProps {
@@ -23,7 +23,7 @@ interface ScoringPanelProps {
   className?: string
 }
 
-const DIMENSION_LABELS: Record<keyof DimensionScores, string> = {
+export const DIMENSION_LABELS: Record<keyof DimensionScores, string> = {
   problemArticulation: 'Problem Articulation',
   iterationQuality: 'Iteration Quality',
   criticalEvaluation: 'Critical Evaluation',
@@ -72,6 +72,8 @@ export function ScoringPanel({
   const totalScore = calculateTotal(dimensionScores)
   const interpretation = interpretScore(totalScore)
   const weak = weakDimensions(dimensionScores, rubricConfig)
+  const reasonRequired = needsOverrideReason(totalScore, suggestedScore) && !notes.trim()
+  const gap = suggestedScore !== null ? totalScore - Math.round(suggestedScore) : 0
 
   const handleDimensionChange = (key: keyof DimensionScores, value: number[]) => {
     setDimensionScores(prev => ({ ...prev, [key]: value[0] }))
@@ -86,6 +88,7 @@ export function ScoringPanel({
   }
 
   const handleSave = async () => {
+    if (reasonRequired) return
     setSaving(true)
     try {
       await onSave({
@@ -193,12 +196,19 @@ export function ScoringPanel({
             placeholder="Add notes about this submission..."
             rows={3}
           />
+          {reasonRequired && (
+            <p className="flex items-start gap-1 text-xs text-amber-700">
+              <AlertCircle className="w-3.5 h-3.5 mt-px shrink-0" />
+              Your grade is {Math.abs(gap)} points {gap > 0 ? 'above' : 'below'} the suggestion. Say why
+              in your notes; it&apos;s recorded with the grade.
+            </p>
+          )}
         </div>
 
         {/* Save Button */}
         <Button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || reasonRequired}
           className="w-full bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700"
         >
           <Save className="w-4 h-4 mr-2" />

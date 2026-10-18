@@ -10,6 +10,7 @@
 import { createHash } from 'crypto'
 import type { Submission } from '../db/schema'
 import { parseGradeRecords, type EvidenceFingerprint } from './grade-record'
+import { parseIntentOverrides } from '../analyzer/intent-overrides'
 
 type Evidence = Pick<Submission, 'chatExports' | 'finalCode'>
 
@@ -28,9 +29,25 @@ export function evidenceChangedSinceGrade(submission: Evidence & Pick<Submission
   return recorded.chatSha256 !== current.chatSha256 || recorded.codeSha256 !== current.codeSha256
 }
 
-/** A submission row as the API returns it: with the evidence check, which the client can't compute. */
-export function withEvidenceCheck<T extends Submission>(submission: T): T & { evidenceChangedSinceGrade: boolean } {
-  return { ...submission, evidenceChangedSinceGrade: evidenceChangedSinceGrade(submission) }
+/**
+ * Whether the teacher's rulings on flagged messages differ from those the current
+ * grade was recorded with. False when there's no record, or it predates rulings.
+ */
+export function rulingsChangedSinceGrade(submission: Pick<Submission, 'gradeRecords' | 'intentOverrides'>): boolean {
+  const recorded = parseGradeRecords(submission.gradeRecords).at(-1)?.intentOverrides
+  if (!recorded) return false
+  return JSON.stringify(recorded) !== JSON.stringify(parseIntentOverrides(submission.intentOverrides))
+}
+
+/** A submission row as the API returns it: with the checks against its grade record, which the client can't compute. */
+export function withEvidenceCheck<T extends Submission>(
+  submission: T
+): T & { evidenceChangedSinceGrade: boolean; rulingsChangedSinceGrade: boolean } {
+  return {
+    ...submission,
+    evidenceChangedSinceGrade: evidenceChangedSinceGrade(submission),
+    rulingsChangedSinceGrade: rulingsChangedSinceGrade(submission),
+  }
 }
 
 function sha256(stored: string | null): string | null {

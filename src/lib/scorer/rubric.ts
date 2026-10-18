@@ -222,8 +222,8 @@ function scoreDebuggingProcess(ctx: ScoringContext): number {
  * Based on: code modification analysis (if available)
  */
 /** Points off Independence per request that handed over a whole feature, page or file. */
-const DELEGATION_PENALTY = 5
-const DELEGATION_PENALTY_MAX = 30
+export const DELEGATION_PENALTY = 5
+export const DELEGATION_PENALTY_MAX = 30
 
 function scoreIndependenceShown(ctx: ScoringContext): number {
   const { codeModification, metrics } = ctx
@@ -379,4 +379,16 @@ export function weakDimensions(
   return (Object.keys(scores) as Array<keyof DimensionScores>)
     .filter(key => rubricConfig[key] > 0 && scores[key] < WEAK_DIMENSION_THRESHOLD)
     .sort((a, b) => scores[a] - scores[b])
+}
+
+/** A grade at least this many points from the suggestion needs a written reason. */
+export const OVERRIDE_REASON_POINTS = 10
+
+/**
+ * Whether a grade departs far enough from the suggestion to need a reason in the
+ * teacher's notes: the grade is the teacher's call, but an appeal will ask why it
+ * differs from what the analysis suggested.
+ */
+export function needsOverrideReason(finalScore: number, suggestedScore: number | null): boolean {
+  return suggestedScore !== null && Math.abs(finalScore - Math.round(suggestedScore)) >= OVERRIDE_REASON_POINTS
 }

@@ -71,17 +71,19 @@ export function classifyPrompts(chat: ParsedChat): PromptIntent[] {
     const offTopicRequest = !aboutCode && reply === 0 && (IMAGE_EDIT.test(content) || WRITING.test(content))
     const offTopicFollowUp =
       previousOffTopic && !aboutCode && reply === 0 && content.length <= FOLLOW_UP_MAX
-    const offTopic = offTopicRequest || offTopicFollowUp
+    // The teacher's ruling, where there is one, outranks what was detected.
+    const offTopic = msg.teacherIntent?.offTopic ?? (offTopicRequest || offTopicFollowUp)
 
     // A reply that hands back a whole code file ("make all the units consistent
     // in my css" -> main_consistent_units.css) is a hand-off whatever the wording.
     const delegation =
-      !offTopic &&
-      (codeDownloads > 0 ||
-        (reply >= DELEGATION_MIN_REPLY_LINES &&
-          !EXAMPLE.test(content) &&
-          (COPY_PASTE.test(content) ||
-            (DELEGATION_REQUEST.test(content) && DELEGATION_SCOPE.test(content)))))
+      msg.teacherIntent?.delegation ??
+      (!offTopic &&
+        (codeDownloads > 0 ||
+          (reply >= DELEGATION_MIN_REPLY_LINES &&
+            !EXAMPLE.test(content) &&
+            (COPY_PASTE.test(content) ||
+              (DELEGATION_REQUEST.test(content) && DELEGATION_SCOPE.test(content))))))
 
     intents[i] = { offTopic, delegation }
     previousOffTopic = offTopic

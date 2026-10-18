@@ -15,12 +15,14 @@ import { scoreAiLikelihood, CODE_SMELL_SCORER_VERSION } from '../analyzer/code-s
 import { checkCurriculumScope, validateCurriculumScope } from '../analyzer/curriculum-scope'
 import { calculateScores, parseRubricSnapshot, rubricsMatch } from './rubric'
 import { buildAiUseFeedback, summarizeFindings, type AiUseFindings } from '../analyzer/feedback'
+import { applyIntentOverrides, type IntentOverrides } from '../analyzer/intent-overrides'
 
 /**
  * Bump whenever a change to the parser, analyzers or rubric logic can move a
  * transcript's suggested score. Stored with each suggestion so a stale one is
  * flagged for rescoring instead of silently disagreeing with live analysis (the
- * AI-use summary is computed fresh on every view).
+ * AI-use summary is computed fresh on every view). score-snapshot.test.ts fails
+ * if scores move without a bump.
  */
 export const TRANSCRIPT_SCORER_VERSION = '2026-10-17.2'
 
@@ -100,14 +102,16 @@ export interface RescoreUpdate {
 export function rescoreStoredSubmission(
   storedChatExports: string,
   finalCode: string | null,
-  rubricConfig: RubricConfig
+  rubricConfig: RubricConfig,
+  intentOverrides: IntentOverrides = {}
 ): RescoreUpdate {
   const parsedChats: ParsedChat[] = JSON.parse(storedChatExports)
   if (!Array.isArray(parsedChats)) {
     throw new Error('Stored transcripts are not an array')
   }
 
-  const scored = scoreSubmission(parsedChats, finalCode, rubricConfig)
+  // The teacher's rulings on flagged messages count as much as the detection does.
+  const scored = scoreSubmission(applyIntentOverrides(parsedChats, intentOverrides), finalCode, rubricConfig)
 
   return {
     computedMetrics: JSON.stringify(scored.metrics),

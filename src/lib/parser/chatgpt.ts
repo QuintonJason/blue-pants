@@ -11,6 +11,12 @@ export interface ChatMessage {
   content: string
   timestamp?: string
   codeBlocks: CodeBlock[]
+  /**
+   * The teacher's ruling on what this message was for, overriding the detected
+   * intent. Never stored in a transcript: applyIntentOverrides adds it to an
+   * in-memory copy before analysis.
+   */
+  teacherIntent?: { offTopic?: boolean; delegation?: boolean }
 }
 
 export interface CodeBlock {

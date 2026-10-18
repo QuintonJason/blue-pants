@@ -4,6 +4,7 @@ import { assignments, submissions, type RubricConfig } from '@/lib/db/schema'
 import { appendGradeRecord, buildGradeRecord, parseGradeRecords } from '@/lib/scorer/grade-record'
 import { evidenceFingerprint, withEvidenceCheck } from '@/lib/scorer/evidence'
 import { backupQuietly } from '@/lib/db/backup'
+import { needsOverrideReason, OVERRIDE_REASON_POINTS } from '@/lib/scorer/rubric'
 import { eq } from 'drizzle-orm'
 
 // GET - Get single submission
@@ -83,6 +84,13 @@ export async function PUT(
       if (existing[0].submissionMode === 'code_only' && !effectiveNotes?.trim()) {
         return NextResponse.json(
           { error: 'Teacher notes are required to save a grade on a submission with no transcript' },
+          { status: 400 }
+        )
+      }
+
+      if (needsOverrideReason(finalScore, existing[0].suggestedScore) && !effectiveNotes?.trim()) {
+        return NextResponse.json(
+          { error: `Teacher notes are required for a grade ${OVERRIDE_REASON_POINTS} or more points from the suggestion` },
           { status: 400 }
         )
       }
