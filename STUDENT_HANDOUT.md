@@ -32,6 +32,23 @@ Your chat logs will be submitted and assessed based on the quality of your colla
 | **Debugging** | Did you work through errors thoughtfully? |
 | **Independence** | Did you modify AI code or just copy it? |
 
+### What Costs Points
+
+- **Handing over the work.** Asking the AI to build a whole page, feature or file
+  for you ("make my website", "give me all the code so I can copy and paste")
+  lowers your Independence score each time. Asking for an *example* to learn
+  from, or for help with one part, doesn't.
+- **Copying code unchanged.** Code from the AI that ends up in your project
+  without your own changes counts against Independence.
+
+### What Doesn't Count Either Way
+
+- Conversations that aren't about your code (writing a story, editing an image)
+  are left out. They don't help or hurt.
+
+Your teacher reviews every flagged message and can overrule the flag, and you
+get written feedback quoting your own messages.
+
 ---
 
 ## Example: Strong Prompt

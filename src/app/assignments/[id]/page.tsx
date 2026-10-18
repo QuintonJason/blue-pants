@@ -21,6 +21,7 @@ import {
   Upload,
   AlertTriangle
 } from 'lucide-react'
+import { interpretAiLikelihood } from '@/lib/analyzer/code-smell'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import type { RubricConfig } from '@/lib/db/schema'
 import { suggestionStaleness } from '@/lib/scorer/pipeline'
@@ -244,8 +245,12 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
                               <Badge variant="success">{submission.finalScore}%</Badge>
                             ) : submission.submissionMode === 'code_only' ? (
                               submission.aiLikelihoodScore !== null && (
-                                <Badge variant="secondary">
-                                  AI-likelihood {Math.round(submission.aiLikelihoodScore)}
+                                // A bare number in a list reads like a verdict; the label says what it is.
+                                <Badge
+                                  variant="secondary"
+                                  title="Code-only heuristic: a reason to ask for their process, not evidence of misconduct"
+                                >
+                                  Code signals: {interpretAiLikelihood(submission.aiLikelihoodScore).label.toLowerCase()}
                                 </Badge>
                               )
                             ) : submission.suggestedScore !== null ? (
