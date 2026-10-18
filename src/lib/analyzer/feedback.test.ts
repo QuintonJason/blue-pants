@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildAiUseFeedback, feedbackToText } from './feedback'
+import { buildAiUseFeedback, classPatterns, feedbackToText, summarizeFindings, topFinding } from './feedback'
 import { chat, message } from './fixtures'
 import { messageAnchor } from './highlighter'
 
@@ -94,13 +94,78 @@ describe('buildAiUseFeedback', () => {
 describe('feedbackToText', () => {
   it('renders both sections with quotes for pasting into feedback', () => {
     const text = feedbackToText({
-      strengths: [{ title: 'You ask questions', detail: 'Often.', examples: [{ text: 'why does this work', anchor: 'chat-0-message-0' }] }],
-      improvements: [{ title: 'Write it yourself', detail: 'Sometimes.', examples: [] }],
+      strengths: [{ id: 'asks-questions', count: 1, title: 'You ask questions', detail: 'Often.', examples: [{ text: 'why does this work', anchor: 'chat-0-message-0' }] }],
+      improvements: [{ id: 'hands-off-features', count: 1, title: 'Write it yourself', detail: 'Sometimes.', examples: [] }],
       notes: ['1 request was off-topic.'],
     })
     expect(text).toBe(
       'What you are doing well\n- You ask questions. Often.\n    "why does this work"\n\n' +
         'What to work on\n- Write it yourself. Sometimes.\n\n1 request was off-topic.'
     )
+  })
+})
+
+describe('classPatterns', () => {
+  const findings = (improvements: string[], strengths: string[] = []) =>
+    JSON.stringify({
+      improvements: improvements.map(id => ({ id, count: 1 })),
+      strengths: strengths.map(id => ({ id, count: 1 })),
+    })
+
+  it('counts students per finding, most common first', () => {
+    const patterns = classPatterns([
+      { studentName: 'Ana', submissionMode: 'chat', aiUseFindings: findings(['bare-pastes'], ['asks-questions']) },
+      { studentName: 'Ben', submissionMode: 'chat', aiUseFindings: findings(['hands-off-features', 'bare-pastes']) },
+      { studentName: 'Cy', submissionMode: 'chat', aiUseFindings: findings(['bare-pastes'], ['asks-questions']) },
+    ])
+    expect(patterns.analyzed).toBe(3)
+    expect(patterns.improvements).toEqual([
+      { id: 'bare-pastes', students: ['Ana', 'Ben', 'Cy'] },
+      { id: 'hands-off-features', students: ['Ben'] },
+    ])
+    expect(patterns.strengths).toEqual([{ id: 'asks-questions', students: ['Ana', 'Cy'] }])
+  })
+
+  it('counts chat submissions without stored findings separately, and skips code-only ones', () => {
+    const patterns = classPatterns([
+      { studentName: 'Ana', submissionMode: 'chat', aiUseFindings: null },
+      { studentName: 'Ben', submissionMode: 'chat', aiUseFindings: 'not json' },
+      { studentName: 'Cy', submissionMode: 'code_only', aiUseFindings: null },
+    ])
+    expect(patterns).toEqual({ analyzed: 0, notAnalyzed: 2, improvements: [], strengths: [] })
+  })
+
+  it('ignores finding ids it no longer knows', () => {
+    const patterns = classPatterns([
+      { studentName: 'Ana', submissionMode: 'chat', aiUseFindings: findings(['retired-finding']) },
+    ])
+    expect(patterns.improvements).toEqual([])
+  })
+})
+
+describe('summarizeFindings', () => {
+  it('stores ids and counts in summary order, without wording', () => {
+    const handedOff = chat(
+      message('user', 'Design my website with separate HTML and CSS files'),
+      message('assistant', '```html\n' + SITE + '\n```'),
+    )
+    const stored = summarizeFindings(buildAiUseFeedback([handedOff], SITE))
+    expect(stored.improvements[0]).toEqual({ id: 'hands-off-features', count: 1 })
+    expect(JSON.stringify(stored)).not.toContain('Write features yourself')
+  })
+})
+
+describe('topFinding', () => {
+  it("tags the summary's first improvement", () => {
+    const stored = JSON.stringify({
+      strengths: [{ id: 'asks-questions', count: 51 }],
+      improvements: [{ id: 'hands-off-features', count: 9 }, { id: 'mostly-ai-code', count: 83 }],
+    })
+    expect(topFinding(stored)).toEqual({ tag: '9 hand-offs', label: 'Hand whole features to the AI' })
+  })
+
+  it('is null with nothing to work on, or nothing stored', () => {
+    expect(topFinding(JSON.stringify({ strengths: [{ id: 'asks-questions', count: 3 }], improvements: [] }))).toBeNull()
+    expect(topFinding(null)).toBeNull()
   })
 })

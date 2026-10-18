@@ -14,6 +14,7 @@ import { analyzeModifications, findStudentFirstShingles, getCodeSummary } from '
 import { scoreAiLikelihood, CODE_SMELL_SCORER_VERSION } from '../analyzer/code-smell'
 import { checkCurriculumScope, validateCurriculumScope } from '../analyzer/curriculum-scope'
 import { calculateScores, parseRubricSnapshot, rubricsMatch } from './rubric'
+import { buildAiUseFeedback, summarizeFindings, type AiUseFindings } from '../analyzer/feedback'
 
 /**
  * Bump whenever a change to the parser, analyzers or rubric logic can move a
@@ -21,7 +22,7 @@ import { calculateScores, parseRubricSnapshot, rubricsMatch } from './rubric'
  * flagged for rescoring instead of silently disagreeing with live analysis (the
  * AI-use summary is computed fresh on every view).
  */
-export const TRANSCRIPT_SCORER_VERSION = '2026-10-17.1'
+export const TRANSCRIPT_SCORER_VERSION = '2026-10-17.2'
 
 export interface ScoredSubmission {
   metrics: ComputedMetrics
@@ -29,6 +30,8 @@ export interface ScoredSubmission {
   suggestedScore: number
   /** Assistant code blocks, stored so the diff view does not re-derive them. */
   aiCodeSnippets: CodeBlock[]
+  /** What the AI-use summary found, for class-wide views. */
+  aiUseFindings: AiUseFindings
 }
 
 /**
@@ -65,6 +68,7 @@ export function scoreSubmission(
     dimensionScores,
     suggestedScore: totalScore,
     aiCodeSnippets: codeSummaries.flatMap(summary => summary.codeBlocks),
+    aiUseFindings: summarizeFindings(buildAiUseFeedback(parsedChats, finalCode ?? null)),
   }
 }
 
@@ -83,6 +87,7 @@ export interface RescoreUpdate {
   /** The rubric this score was computed with, so it stays explainable later. */
   rubricSnapshot: string
   transcriptScorerVersion: string
+  aiUseFindings: string
 }
 
 /**
@@ -111,6 +116,7 @@ export function rescoreStoredSubmission(
     aiCodeSnippets: JSON.stringify(scored.aiCodeSnippets),
     rubricSnapshot: JSON.stringify(rubricConfig),
     transcriptScorerVersion: TRANSCRIPT_SCORER_VERSION,
+    aiUseFindings: JSON.stringify(scored.aiUseFindings),
   }
 }
 

@@ -12,7 +12,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { ChatViewer, type ChatFocus } from '@/components/chat-viewer'
 import { CodeDiff } from '@/components/code-diff'
 import { AiUseSummary } from '@/components/ai-use-summary'
-import { MetricsPanel } from '@/components/metrics-panel'
 import { ScoringPanel } from '@/components/scoring-panel'
 import { AiLikelihoodPanel } from '@/components/ai-likelihood-panel'
 import { CurriculumScopePanel } from '@/components/curriculum-scope-panel'
@@ -22,7 +21,6 @@ import {
   ArrowLeft,
   MessageSquare,
   Code,
-  BarChart3,
   User,
   Calendar,
   Trash2,
@@ -36,7 +34,7 @@ import {
 import { formatDateTime } from '@/lib/utils'
 import { parseRubricSnapshot } from '@/lib/scorer/rubric'
 import { suggestionStaleness } from '@/lib/scorer/pipeline'
-import type { Submission, Assignment, ComputedMetrics, DimensionScores, RubricConfig, CodeSmellSignalResult, CurriculumScopeFlag } from '@/lib/db/schema'
+import type { Submission, Assignment, DimensionScores, RubricConfig, CodeSmellSignalResult, CurriculumScopeFlag } from '@/lib/db/schema'
 import type { ParsedChat, CodeBlock } from '@/lib/parser/chatgpt'
 import {
   Dialog,
@@ -50,7 +48,6 @@ import {
 
 interface SubmissionData extends Submission {
   parsedChats: ParsedChat[]
-  parsedMetrics: ComputedMetrics
   parsedDimensionScores: DimensionScores | null
   parsedSuggestedDimensionScores: DimensionScores | null
   parsedAiCode: CodeBlock[]
@@ -63,7 +60,6 @@ function hydrateSubmission(sub: Submission): SubmissionData {
   return {
     ...sub,
     parsedChats: JSON.parse(sub.chatExports || '[]'),
-    parsedMetrics: JSON.parse(sub.computedMetrics || '{}'),
     parsedDimensionScores: sub.dimensionScores ? JSON.parse(sub.dimensionScores) : null,
     parsedSuggestedDimensionScores: sub.suggestedDimensionScores
       ? JSON.parse(sub.suggestedDimensionScores)
@@ -364,12 +360,6 @@ export default function SubmissionReviewPage() {
                   <Eye className="w-4 h-4" />
                   Preview
                 </TabsTrigger>
-                {!isCodeOnly && (
-                  <TabsTrigger value="metrics" className="flex items-center gap-2 lg:hidden">
-                    <BarChart3 className="w-4 h-4" />
-                    Metrics
-                  </TabsTrigger>
-                )}
               </TabsList>
 
               {!isCodeOnly && (
@@ -465,17 +455,12 @@ export default function SubmissionReviewPage() {
                 </Card>
               </TabsContent>
 
-              {!isCodeOnly && (
-              <TabsContent value="metrics" className="mt-4 lg:hidden">
-                <MetricsPanel metrics={submission.parsedMetrics} />
-              </TabsContent>
-              )}
             </Tabs>
           </div>
 
-          {/* Sidebar - Metrics & Scoring */}
+          {/* Sidebar - Scoring */}
           <div className="space-y-6">
-            {isCodeOnly ? (
+            {isCodeOnly && (
               <TranscriptRequestPanel
                 submissionId={submission.id}
                 transcriptStatus={submission.transcriptStatus}
@@ -483,10 +468,6 @@ export default function SubmissionReviewPage() {
                 onUpdated={handleTranscriptUpdated}
                 className="border-0 shadow-lg"
               />
-            ) : (
-              <div className="hidden lg:block">
-                <MetricsPanel metrics={submission.parsedMetrics} className="border-0 shadow-lg" />
-              </div>
             )}
 
             {/* Student Self-Reflection */}

@@ -18,11 +18,13 @@ import {
   Clock,
   ArrowRight,
   CheckCircle,
-  Upload
+  Upload,
+  AlertTriangle
 } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import type { RubricConfig } from '@/lib/db/schema'
 import { suggestionStaleness } from '@/lib/scorer/pipeline'
+import { topFinding } from '@/lib/analyzer/feedback'
 
 async function getAssignment(id: number) {
   const assignment = await db
@@ -211,7 +213,9 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {assignment.submissions.map((submission) => (
+                    {assignment.submissions.map((submission) => {
+                      const flag = submission.submissionMode === 'chat' ? topFinding(submission.aiUseFindings) : null
+                      return (
                       <Link
                         key={submission.id}
                         href={`/assignments/${assignmentId}/submissions/${submission.id}`}
@@ -225,6 +229,12 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
                             <p className="text-xs text-muted-foreground">
                               {formatDateTime(submission.submittedAt)}
                             </p>
+                            {flag && (
+                              <p className="text-xs text-amber-700 flex items-center gap-1 mt-0.5" title={flag.label}>
+                                <AlertTriangle className="w-3 h-3" />
+                                {flag.tag}
+                              </p>
+                            )}
                           </div>
                           <div className="flex items-center gap-3">
                             {submission.submissionMode === 'code_only' && (
@@ -249,7 +259,8 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
                           </div>
                         </div>
                       </Link>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </CardContent>

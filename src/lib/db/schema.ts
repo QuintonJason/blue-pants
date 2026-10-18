@@ -97,6 +97,11 @@ export const submissions = sqliteTable('submissions', {
   // suggestions are flagged rather than shown beside feedback computed by the new
   // rules (mirrors aiLikelihoodScorerVersion).
   transcriptScorerVersion: text('transcript_scorer_version'),
+
+  // What the AI-use summary found, without its wording (JSON AiUseFindings),
+  // derived like computedMetrics so class-wide views needn't re-analyze every
+  // transcript. The summary card itself is always computed live.
+  aiUseFindings: text('ai_use_findings'),
 })
 
 // Types for TypeScript

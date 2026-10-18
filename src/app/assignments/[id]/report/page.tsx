@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { suggestionStaleness } from '@/lib/scorer/pipeline'
+import { ClassPatterns } from '@/components/class-patterns'
 import type { Assignment, Submission, DimensionScores, RubricConfig } from '@/lib/db/schema'
 
 interface ReportData {
@@ -195,6 +196,8 @@ export default function ReportPage() {
             )}
           </CardContent>
         </Card>
+
+        <ClassPatterns submissions={data.submissions} className="mb-6 print:shadow-none print:border" />
 
         {/* Rubric Used */}
         <Card className="mb-6 print:shadow-none print:border">

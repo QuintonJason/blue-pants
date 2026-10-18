@@ -52,6 +52,7 @@ describe('rescoreStoredSubmission', () => {
     const update = rescoreStoredSubmission(stored, AI_CODE, DEFAULT_RUBRIC_CONFIG)
     expect(Object.keys(update).sort()).toEqual([
       'aiCodeSnippets',
+      'aiUseFindings',
       'computedMetrics',
       'rubricSnapshot',
       'suggestedDimensionScores',

@@ -91,6 +91,7 @@ export async function POST(
         suggestedDimensionScores: JSON.stringify(scored.dimensionScores),
         rubricSnapshot: JSON.stringify(rubricConfig),
         transcriptScorerVersion: TRANSCRIPT_SCORER_VERSION,
+        aiUseFindings: JSON.stringify(scored.aiUseFindings),
         transcriptStatus: 'received',
       })
       .where(eq(submissions.id, submissionId))

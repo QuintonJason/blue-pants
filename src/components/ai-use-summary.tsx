@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { CheckCircle, ArrowUpRight, Copy, Check, Sparkles } from 'lucide-react'
 import { buildAiUseFeedback, feedbackToText, type FeedbackPoint } from '@/lib/analyzer/feedback'
+import { computeAggregateMetrics } from '@/lib/analyzer/metrics'
+import { MetricsDetails } from '@/components/metrics-details'
 import type { ParsedChat } from '@/lib/parser/chatgpt'
 
 interface AiUseSummaryProps {
@@ -22,6 +24,8 @@ interface AiUseSummaryProps {
  */
 export function AiUseSummary({ chats, finalCode, onQuoteClick, className }: AiUseSummaryProps) {
   const feedback = useMemo(() => buildAiUseFeedback(chats, finalCode), [chats, finalCode])
+  // Live, like the summary, so the counts can't disagree with the points above them.
+  const metrics = useMemo(() => computeAggregateMetrics(chats), [chats])
   const [copied, setCopied] = useState(false)
 
   const copy = async () => {
@@ -33,8 +37,6 @@ export function AiUseSummary({ chats, finalCode, onQuoteClick, className }: AiUs
       // Clipboard can be unavailable (permissions, insecure context); nothing to undo.
     }
   }
-
-  if (feedback.strengths.length === 0 && feedback.improvements.length === 0) return null
 
   return (
     <Card className={className}>
@@ -73,6 +75,12 @@ export function AiUseSummary({ chats, finalCode, onQuoteClick, className }: AiUs
         {feedback.notes.length > 0 && (
           <p className="text-xs text-muted-foreground border-t pt-3">{feedback.notes.join(' ')}</p>
         )}
+        <details className="group border-t pt-3">
+          <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground select-none">
+            The numbers behind this
+          </summary>
+          <MetricsDetails metrics={metrics} className="grid sm:grid-cols-2 gap-2 mt-3" />
+        </details>
       </CardContent>
     </Card>
   )
