@@ -134,8 +134,10 @@ export function ChatViewer({ chats, focus, className }: ChatViewerProps) {
   useEffect(() => {
     if (!focus) return
     // The tab may have only just mounted this list; scroll once it has painted.
+    // Instant, not smooth: in a long transcript the target can be 100,000px down,
+    // and a smooth scroll took seconds, ended off-centre, and outlasted the outline.
     const frame = requestAnimationFrame(() => {
-      document.getElementById(focus.anchor)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      document.getElementById(focus.anchor)?.scrollIntoView({ block: 'center' })
       setFocused(focus.anchor)
     })
     const clear = setTimeout(() => setFocused(null), FOCUS_HIGHLIGHT_MS)
