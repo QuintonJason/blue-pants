@@ -2,9 +2,20 @@
 
 ## Your AI Conversations Will Be Reviewed
 
-This course encourages using AI tools like ChatGPT. However, **how you use AI matters more than whether you use it.**
+This course encourages using ChatGPT. However, **how you use AI matters more than whether you use it.**
 
 Your chat logs will be submitted and assessed based on the quality of your collaboration.
+
+### Use ChatGPT, and Submit Every Conversation
+
+ChatGPT is the only AI tool allowed for this course. Submit **every** ChatGPT
+conversation you used for this project, not just the best ones. If work in your
+project clearly came from a conversation you didn't submit, or from another AI
+tool, you'll be asked to walk your teacher through
+it, and your grade may change.
+
+Your conversations are read only by your teacher, and only to grade your work
+in this course.
 
 ---
 
