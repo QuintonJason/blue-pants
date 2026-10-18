@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "drizzle-kit push",
+    "predev": "node scripts/backup-db.js before-schema-update && drizzle-kit push",
     "dev": "next dev -p 3200",
     "build": "next build",
     "start": "next start",
@@ -11,9 +11,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:migrate": "node scripts/backup-db.js before-schema-update && drizzle-kit migrate",
+    "db:push": "node scripts/backup-db.js before-schema-update && drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:backup": "node scripts/backup-db.js manual"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

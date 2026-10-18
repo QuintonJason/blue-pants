@@ -13,6 +13,8 @@ export default defineConfig({
     fileParallelism: false,
     env: {
       TRANSCRIPT_DB_FILE: 'test.db',
+      // Routes back up the database they write to; tests shouldn't fill data/backups with test.db copies.
+      TRANSCRIPT_BACKUPS: 'off',
     },
     include: ['src/**/*.test.ts'],
   },
