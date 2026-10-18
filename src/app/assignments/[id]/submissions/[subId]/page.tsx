@@ -34,6 +34,7 @@ import {
 import { formatDateTime } from '@/lib/utils'
 import { parseRubricSnapshot } from '@/lib/scorer/rubric'
 import { suggestionStaleness } from '@/lib/scorer/pipeline'
+import { parseGradeRecords, type GradeRecord } from '@/lib/scorer/grade-record'
 import type { Submission, Assignment, DimensionScores, RubricConfig, CodeSmellSignalResult, CurriculumScopeFlag } from '@/lib/db/schema'
 import type { ParsedChat, CodeBlock } from '@/lib/parser/chatgpt'
 import {
@@ -53,10 +54,13 @@ interface SubmissionData extends Submission {
   parsedAiCode: CodeBlock[]
   parsedAiLikelihoodSignals: CodeSmellSignalResult[]
   parsedCurriculumScopeFlags: CurriculumScopeFlag[] | null
+  parsedGradeRecords: GradeRecord[]
+  /** From the API: the transcript or code differs from what the current grade was given on. */
+  evidenceChangedSinceGrade?: boolean
 }
 
 /** Parse the JSON-string columns on a raw submission row into the shape the UI wants. */
-function hydrateSubmission(sub: Submission): SubmissionData {
+function hydrateSubmission(sub: Submission & { evidenceChangedSinceGrade?: boolean }): SubmissionData {
   return {
     ...sub,
     parsedChats: JSON.parse(sub.chatExports || '[]'),
@@ -67,6 +71,7 @@ function hydrateSubmission(sub: Submission): SubmissionData {
     parsedAiCode: JSON.parse(sub.aiCodeSnippets || '[]'),
     parsedAiLikelihoodSignals: sub.aiLikelihoodSignals ? JSON.parse(sub.aiLikelihoodSignals) : [],
     parsedCurriculumScopeFlags: sub.curriculumScopeFlags ? JSON.parse(sub.curriculumScopeFlags) : null,
+    parsedGradeRecords: parseGradeRecords(sub.gradeRecords),
   }
 }
 
@@ -164,6 +169,9 @@ export default function SubmissionReviewPage() {
       dimensionScores: updated.dimensionScores,
       teacherNotes: updated.teacherNotes,
       parsedDimensionScores: data.dimensionScores ?? prev.parsedDimensionScores,
+      gradeRecords: updated.gradeRecords,
+      parsedGradeRecords: parseGradeRecords(updated.gradeRecords),
+      evidenceChangedSinceGrade: updated.evidenceChangedSinceGrade,
     } : null)
   }
 
@@ -333,6 +341,7 @@ export default function SubmissionReviewPage() {
                 chats={submission.parsedChats}
                 finalCode={submission.finalCode}
                 onQuoteClick={showInChat}
+                gradeRecords={submission.finalScore !== null ? submission.parsedGradeRecords : undefined}
                 className="border-0 shadow-lg"
               />
             )}
@@ -518,6 +527,23 @@ export default function SubmissionReviewPage() {
                 </Button>
               </CardContent>
             </Card>
+
+            {submission.evidenceChangedSinceGrade && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="font-medium">The evidence has changed since this was graded</p>
+                    <p>
+                      The transcript or code stored now is not what the grade of {submission.finalScore}%
+                      was given on {formatDateTime(submission.parsedGradeRecords.at(-1)!.recordedAt)}.
+                      Review it and save the grade again to record it against the current evidence; the
+                      earlier record is kept.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {isCodeOnly ? (
               <>

@@ -6,6 +6,7 @@ import { smartParse, type ParsedChat } from '@/lib/parser/chatgpt'
 import { DEFAULT_RUBRIC_CONFIG } from '@/lib/scorer/rubric'
 import { scoreSubmission, TRANSCRIPT_SCORER_VERSION } from '@/lib/scorer/pipeline'
 import type { RubricConfig } from '@/lib/db/schema'
+import { withEvidenceCheck } from '@/lib/scorer/evidence'
 
 // POST - Upgrade a 'code_only' submission to 'chat' once a transcript arrives; aiLikelihoodScore/Signals stay as historical context.
 export async function POST(
@@ -97,7 +98,9 @@ export async function POST(
       .where(eq(submissions.id, submissionId))
       .returning()
 
-    return NextResponse.json(result[0])
+    // A grade given before the transcript arrived now sits on different evidence;
+    // the check tells the page so it can say so.
+    return NextResponse.json(withEvidenceCheck(result[0]))
   } catch (error) {
     console.error('Error adding transcript to submission:', error)
     return NextResponse.json({ error: 'Failed to add transcript' }, { status: 500 })

@@ -3,17 +3,26 @@
 import { useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { CheckCircle, ArrowUpRight, Copy, Check, Sparkles } from 'lucide-react'
+import { CheckCircle, ArrowUpRight, Copy, Check, Sparkles, Lock } from 'lucide-react'
 import { buildAiUseFeedback, feedbackToText, type FeedbackPoint } from '@/lib/analyzer/feedback'
 import { computeAggregateMetrics } from '@/lib/analyzer/metrics'
 import { MetricsDetails } from '@/components/metrics-details'
 import type { ParsedChat } from '@/lib/parser/chatgpt'
+import type { GradeRecord } from '@/lib/scorer/grade-record'
+import { TRANSCRIPT_SCORER_VERSION } from '@/lib/scorer/pipeline'
+import { formatDateTime } from '@/lib/utils'
 
 interface AiUseSummaryProps {
   chats: ParsedChat[]
   finalCode: string | null
   /** Show the quoted message in the chat log (receives a messageAnchor). */
   onQuoteClick?: (anchor: string) => void
+  /**
+   * Records of each saved grade, oldest first; pass only for a graded
+   * submission. The latest record's summary is shown instead of a live one, so a
+   * graded submission keeps the evidence its grade was given on.
+   */
+  gradeRecords?: GradeRecord[]
   className?: string
 }
 
@@ -22,10 +31,25 @@ interface AiUseSummaryProps {
  * quotes from their own messages. Written to the student, so it can be copied
  * straight into feedback.
  */
-export function AiUseSummary({ chats, finalCode, onQuoteClick, className }: AiUseSummaryProps) {
-  const feedback = useMemo(() => buildAiUseFeedback(chats, finalCode), [chats, finalCode])
-  // Live, like the summary, so the counts can't disagree with the points above them.
-  const metrics = useMemo(() => computeAggregateMetrics(chats), [chats])
+export function AiUseSummary({ chats, finalCode, onQuoteClick, gradeRecords, className }: AiUseSummaryProps) {
+  const graded = gradeRecords !== undefined
+  const records = gradeRecords ?? []
+  const recorded = [...records].reverse().find(r => r.feedback && r.metrics)
+  const rulesChanged = !!recorded && recorded.scorerVersion !== TRANSCRIPT_SCORER_VERSION
+  const [showCurrent, setShowCurrent] = useState(false)
+  const showingRecord = !!recorded && !showCurrent
+
+  // The live analysis is only computed when it's what's on screen.
+  const live = useMemo(
+    () =>
+      showingRecord
+        ? null
+        : { feedback: buildAiUseFeedback(chats, finalCode), metrics: computeAggregateMetrics(chats) },
+    [showingRecord, chats, finalCode]
+  )
+  const feedback = showingRecord ? recorded.feedback! : live!.feedback
+  // Shown beside the summary they came from, so the counts can't disagree with its points.
+  const metrics = showingRecord ? recorded.metrics! : live!.metrics
   const [copied, setCopied] = useState(false)
 
   const copy = async () => {
@@ -56,6 +80,34 @@ export function AiUseSummary({ chats, finalCode, onQuoteClick, className }: AiUs
         </Button>
       </CardHeader>
       <CardContent className="space-y-5">
+        {recorded && (
+          <div className="flex flex-wrap items-start justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            <span className="flex items-start gap-2">
+              <Lock className="w-3.5 h-3.5 mt-px shrink-0" />
+              <span>
+                {showingRecord
+                  ? `As recorded when graded ${formatDateTime(recorded.recordedAt)}, under scoring rules ${recorded.scorerVersion}.`
+                  : `Current analysis under scoring rules ${TRANSCRIPT_SCORER_VERSION}. The grade was given on the version recorded ${formatDateTime(recorded.recordedAt)}.`}
+                {records.length > 1 &&
+                  ` Grade history: ${records.map(r => `${r.finalScore}% (${formatDateTime(r.recordedAt)})`).join(' → ')}.`}
+              </span>
+            </span>
+            {rulesChanged && (
+              <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setShowCurrent(v => !v)}>
+                {showCurrent ? 'Show as graded' : 'Show current analysis'}
+              </Button>
+            )}
+          </div>
+        )}
+        {graded && records.length === 0 && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <Lock className="w-3.5 h-3.5 mt-px shrink-0" />
+            <span>
+              Graded before the evidence behind grades was recorded, so this is the current analysis,
+              not necessarily what the grade was given on. Saving the grade again records it.
+            </span>
+          </div>
+        )}
         <div className="grid md:grid-cols-2 gap-5">
           <Section
             heading="Doing well"

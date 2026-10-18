@@ -60,7 +60,7 @@ describe('rescoreStoredSubmission', () => {
       'transcriptScorerVersion',
     ])
     // dimensionScores holds the teacher's adjusted sliders, so it must not appear.
-    for (const forbidden of ['finalScore', 'dimensionScores', 'teacherNotes', 'selfReflection', 'studentName', 'chatExports', 'finalCode']) {
+    for (const forbidden of ['finalScore', 'dimensionScores', 'teacherNotes', 'selfReflection', 'studentName', 'chatExports', 'finalCode', 'gradeRecords']) {
       expect(update).not.toHaveProperty(forbidden)
     }
   })
