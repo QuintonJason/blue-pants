@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Save, RotateCcw } from 'lucide-react'
-import { interpretScore } from '@/lib/scorer/rubric'
+import { interpretScore, weakDimensions } from '@/lib/scorer/rubric'
 import type { DimensionScores, RubricConfig } from '@/lib/db/schema'
 
 interface ScoringPanelProps {
@@ -71,6 +71,7 @@ export function ScoringPanel({
 
   const totalScore = calculateTotal(dimensionScores)
   const interpretation = interpretScore(totalScore)
+  const weak = weakDimensions(dimensionScores, rubricConfig)
 
   const handleDimensionChange = (key: keyof DimensionScores, value: number[]) => {
     setDimensionScores(prev => ({ ...prev, [key]: value[0] }))
@@ -125,6 +126,13 @@ export function ScoringPanel({
           <p className="text-xs text-muted-foreground mt-1">
             {interpretation.description}
           </p>
+          {weak.length > 0 && (
+            <p className="text-xs font-medium text-amber-700 mt-1">
+              {/* Not "held back by": at a 10% weight a weak dimension may cost only a few points. */}
+              Low score in:{' '}
+              {weak.map(key => `${DIMENSION_LABELS[key]} (${dimensionScores[key]}%)`).join(', ')}
+            </p>
+          )}
         </div>
 
         <Separator />

@@ -91,6 +91,24 @@ export const submissions = sqliteTable('submissions', {
   // Null if the assignment has no curriculumScope configured. Informational for
   // the integrity track only, like aiLikelihoodScore — never the content grade.
   curriculumScopeFlags: text('curriculum_scope_flags'),
+
+  // The TRANSCRIPT_SCORER_VERSION the suggested score was computed with. Null for
+  // submissions scored before it was recorded. When the analyzers change, older
+  // suggestions are flagged rather than shown beside feedback computed by the new
+  // rules (mirrors aiLikelihoodScorerVersion).
+  transcriptScorerVersion: text('transcript_scorer_version'),
+
+  // What the AI-use summary found, without its wording (JSON AiUseFindings),
+  // derived like computedMetrics so class-wide views needn't re-analyze every
+  // transcript. The summary card itself is always computed live.
+  aiUseFindings: text('ai_use_findings'),
+
+  // Append-only JSON array of GradeRecord: what stood behind each saved grade
+  // (summary and quotes, rubric, scoring-rules version, the suggestion and
+  // whether it was outdated), so a grade challenged later is shown with the
+  // evidence it was given on, not whatever the current rules produce. Never
+  // written by a rescore.
+  gradeRecords: text('grade_records'),
 })
 
 // Types for TypeScript

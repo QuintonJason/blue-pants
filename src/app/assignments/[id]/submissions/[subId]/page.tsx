@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -9,9 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import { ChatViewer } from '@/components/chat-viewer'
+import { ChatViewer, type ChatFocus } from '@/components/chat-viewer'
 import { CodeDiff } from '@/components/code-diff'
-import { MetricsPanel } from '@/components/metrics-panel'
+import { AiUseSummary } from '@/components/ai-use-summary'
 import { ScoringPanel } from '@/components/scoring-panel'
 import { AiLikelihoodPanel } from '@/components/ai-likelihood-panel'
 import { CurriculumScopePanel } from '@/components/curriculum-scope-panel'
@@ -21,7 +21,6 @@ import {
   ArrowLeft,
   MessageSquare,
   Code,
-  BarChart3,
   User,
   Calendar,
   Trash2,
@@ -33,8 +32,10 @@ import {
   RotateCcw
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
-import { parseRubricSnapshot, rubricsMatch } from '@/lib/scorer/rubric'
-import type { Submission, Assignment, ComputedMetrics, DimensionScores, RubricConfig, CodeSmellSignalResult, CurriculumScopeFlag } from '@/lib/db/schema'
+import { parseRubricSnapshot } from '@/lib/scorer/rubric'
+import { suggestionStaleness } from '@/lib/scorer/pipeline'
+import { parseGradeRecords, type GradeRecord } from '@/lib/scorer/grade-record'
+import type { Submission, Assignment, DimensionScores, RubricConfig, CodeSmellSignalResult, CurriculumScopeFlag } from '@/lib/db/schema'
 import type { ParsedChat, CodeBlock } from '@/lib/parser/chatgpt'
 import {
   Dialog,
@@ -48,20 +49,21 @@ import {
 
 interface SubmissionData extends Submission {
   parsedChats: ParsedChat[]
-  parsedMetrics: ComputedMetrics
   parsedDimensionScores: DimensionScores | null
   parsedSuggestedDimensionScores: DimensionScores | null
   parsedAiCode: CodeBlock[]
   parsedAiLikelihoodSignals: CodeSmellSignalResult[]
   parsedCurriculumScopeFlags: CurriculumScopeFlag[] | null
+  parsedGradeRecords: GradeRecord[]
+  /** From the API: the transcript or code differs from what the current grade was given on. */
+  evidenceChangedSinceGrade?: boolean
 }
 
 /** Parse the JSON-string columns on a raw submission row into the shape the UI wants. */
-function hydrateSubmission(sub: Submission): SubmissionData {
+function hydrateSubmission(sub: Submission & { evidenceChangedSinceGrade?: boolean }): SubmissionData {
   return {
     ...sub,
     parsedChats: JSON.parse(sub.chatExports || '[]'),
-    parsedMetrics: JSON.parse(sub.computedMetrics || '{}'),
     parsedDimensionScores: sub.dimensionScores ? JSON.parse(sub.dimensionScores) : null,
     parsedSuggestedDimensionScores: sub.suggestedDimensionScores
       ? JSON.parse(sub.suggestedDimensionScores)
@@ -69,6 +71,7 @@ function hydrateSubmission(sub: Submission): SubmissionData {
     parsedAiCode: JSON.parse(sub.aiCodeSnippets || '[]'),
     parsedAiLikelihoodSignals: sub.aiLikelihoodSignals ? JSON.parse(sub.aiLikelihoodSignals) : [],
     parsedCurriculumScopeFlags: sub.curriculumScopeFlags ? JSON.parse(sub.curriculumScopeFlags) : null,
+    parsedGradeRecords: parseGradeRecords(sub.gradeRecords),
   }
 }
 
@@ -89,6 +92,14 @@ export default function SubmissionReviewPage() {
   const [rescoring, setRescoring] = useState(false)
   const [rescoreNote, setRescoreNote] = useState('')
   const [reflectionSaved, setReflectionSaved] = useState(false)
+  // Controlled so a quote in the AI-use summary can switch to the chat and scroll to it.
+  const [tab, setTab] = useState<string | null>(null)
+  const [chatFocus, setChatFocus] = useState<ChatFocus | null>(null)
+
+  const showInChat = useCallback((anchor: string) => {
+    setTab('chat')
+    setChatFocus({ anchor, nonce: Date.now() })
+  }, [])
 
   useEffect(() => {
     Promise.all([
@@ -158,6 +169,9 @@ export default function SubmissionReviewPage() {
       dimensionScores: updated.dimensionScores,
       teacherNotes: updated.teacherNotes,
       parsedDimensionScores: data.dimensionScores ?? prev.parsedDimensionScores,
+      gradeRecords: updated.gradeRecords,
+      parsedGradeRecords: parseGradeRecords(updated.gradeRecords),
+      evidenceChangedSinceGrade: updated.evidenceChangedSinceGrade,
     } : null)
   }
 
@@ -216,7 +230,7 @@ export default function SubmissionReviewPage() {
   // time. If the assignment's weights have changed since, the stored score no
   // longer matches the weights shown beside it.
   const scoredUnder = parseRubricSnapshot(submission.rubricSnapshot)
-  const rubricChanged = !rubricsMatch(scoredUnder, rubricConfig)
+  const stale = suggestionStaleness(submission, rubricConfig)
   const allAiCode = submission.parsedAiCode.map(b => b.code).join('\n\n')
   const isCodeOnly = submission.submissionMode === 'code_only'
 
@@ -322,7 +336,16 @@ export default function SubmissionReviewPage() {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Main Content - Chat & Code */}
           <div className="lg:col-span-2 space-y-6">
-            <Tabs defaultValue={isCodeOnly ? 'code' : 'chat'} className="w-full">
+            {!isCodeOnly && submission.parsedChats.length > 0 && (
+              <AiUseSummary
+                chats={submission.parsedChats}
+                finalCode={submission.finalCode}
+                onQuoteClick={showInChat}
+                gradeRecords={submission.finalScore !== null ? submission.parsedGradeRecords : undefined}
+                className="border-0 shadow-lg"
+              />
+            )}
+            <Tabs value={tab ?? (isCodeOnly ? 'code' : 'chat')} onValueChange={setTab} className="w-full">
               <TabsList className="w-full justify-start">
                 {!isCodeOnly && (
                   <TabsTrigger value="chat" className="flex items-center gap-2">
@@ -346,12 +369,6 @@ export default function SubmissionReviewPage() {
                   <Eye className="w-4 h-4" />
                   Preview
                 </TabsTrigger>
-                {!isCodeOnly && (
-                  <TabsTrigger value="metrics" className="flex items-center gap-2 lg:hidden">
-                    <BarChart3 className="w-4 h-4" />
-                    Metrics
-                  </TabsTrigger>
-                )}
               </TabsList>
 
               {!isCodeOnly && (
@@ -361,7 +378,7 @@ export default function SubmissionReviewPage() {
                     <CardTitle className="text-base">Conversation History</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ChatViewer chats={submission.parsedChats} />
+                    <ChatViewer chats={submission.parsedChats} focus={chatFocus} />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -447,17 +464,12 @@ export default function SubmissionReviewPage() {
                 </Card>
               </TabsContent>
 
-              {!isCodeOnly && (
-              <TabsContent value="metrics" className="mt-4 lg:hidden">
-                <MetricsPanel metrics={submission.parsedMetrics} />
-              </TabsContent>
-              )}
             </Tabs>
           </div>
 
-          {/* Sidebar - Metrics & Scoring */}
+          {/* Sidebar - Scoring */}
           <div className="space-y-6">
-            {isCodeOnly ? (
+            {isCodeOnly && (
               <TranscriptRequestPanel
                 submissionId={submission.id}
                 transcriptStatus={submission.transcriptStatus}
@@ -465,10 +477,6 @@ export default function SubmissionReviewPage() {
                 onUpdated={handleTranscriptUpdated}
                 className="border-0 shadow-lg"
               />
-            ) : (
-              <div className="hidden lg:block">
-                <MetricsPanel metrics={submission.parsedMetrics} className="border-0 shadow-lg" />
-              </div>
             )}
 
             {/* Student Self-Reflection */}
@@ -520,6 +528,23 @@ export default function SubmissionReviewPage() {
               </CardContent>
             </Card>
 
+            {submission.evidenceChangedSinceGrade && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="font-medium">The evidence has changed since this was graded</p>
+                    <p>
+                      The transcript or code stored now is not what the grade of {submission.finalScore}%
+                      was given on {formatDateTime(submission.parsedGradeRecords.at(-1)!.recordedAt)}.
+                      Review it and save the grade again to record it against the current evidence; the
+                      earlier record is kept.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {isCodeOnly ? (
               <>
                 <AiLikelihoodPanel
@@ -542,22 +567,32 @@ export default function SubmissionReviewPage() {
               </>
             ) : (
               <>
-                {rubricChanged && submission.suggestedScore !== null && (
+                {stale.length > 0 && (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                     <div className="flex items-start gap-2">
                       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                       <div className="space-y-1">
                         <p className="font-medium">
-                          {scoredUnder
-                            ? "Suggested under a different rubric"
-                            : "Rubric used for this suggestion is unknown"}
+                          {stale.includes('rules')
+                            ? 'Suggested by older scoring rules'
+                            : scoredUnder
+                              ? 'Suggested under a different rubric'
+                              : 'Rubric used for this suggestion is unknown'}
                         </p>
-                        <p>
-                          {scoredUnder
-                            ? "The assignment's weights have changed since this was scored, so the suggestion below does not reflect the weights now shown."
-                            : "This submission was scored before the rubric was recorded, so its suggestion cannot be checked against the current weights."}{' '}
-                          Use Recompute to score it under the current rubric.
-                        </p>
+                        {stale.includes('rules') && (
+                          <p>
+                            Scoring has improved since this was scored, so the suggestion below may
+                            disagree with the AI-use summary, which always uses the current rules.
+                          </p>
+                        )}
+                        {stale.includes('rubric') && (
+                          <p>
+                            {scoredUnder
+                              ? "The assignment's weights have changed since this was scored, so the suggestion below does not reflect the weights now shown."
+                              : 'This submission was scored before the rubric was recorded, so its suggestion cannot be checked against the current weights.'}
+                          </p>
+                        )}
+                        <p>Use Recompute to bring it up to date. Your own grade and notes are kept.</p>
                       </div>
                     </div>
                   </div>

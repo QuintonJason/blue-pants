@@ -4,7 +4,7 @@ import { submissions, assignments } from '@/lib/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { smartParse, type ParsedChat } from '@/lib/parser/chatgpt'
 import { DEFAULT_RUBRIC_CONFIG } from '@/lib/scorer/rubric'
-import { scoreSubmission, scoreCodeOnlySubmission } from '@/lib/scorer/pipeline'
+import { scoreSubmission, scoreCodeOnlySubmission, TRANSCRIPT_SCORER_VERSION } from '@/lib/scorer/pipeline'
 import type { RubricConfig, SubmissionMode } from '@/lib/db/schema'
 
 // GET - List submissions for an assignment
@@ -150,6 +150,8 @@ export async function POST(
       suggestedScore: scored.suggestedScore,
       suggestedDimensionScores: JSON.stringify(scored.dimensionScores),
       rubricSnapshot: JSON.stringify(rubricConfig),
+      transcriptScorerVersion: TRANSCRIPT_SCORER_VERSION,
+      aiUseFindings: JSON.stringify(scored.aiUseFindings),
     }).returning()
 
     return NextResponse.json(result[0])

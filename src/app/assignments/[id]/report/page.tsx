@@ -16,7 +16,8 @@ import {
   CheckCircle
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { parseRubricSnapshot, rubricsMatch } from '@/lib/scorer/rubric'
+import { suggestionStaleness } from '@/lib/scorer/pipeline'
+import { ClassPatterns } from '@/components/class-patterns'
 import type { Assignment, Submission, DimensionScores, RubricConfig } from '@/lib/db/schema'
 
 interface ReportData {
@@ -96,13 +97,11 @@ export default function ReportPage() {
 
   const rubricConfig: RubricConfig = JSON.parse(data.assignment.rubricConfig)
 
-  // Suggested scores are computed at import against the rubric of the day. Any that
-  // were scored under different weights must not be presented as if they came from
-  // the table below.
+  // Suggested scores are computed at import against the rubric and scoring rules of
+  // the day. Any computed under different weights or older rules must not be
+  // presented as if they came from the table below.
   const staleSubmissions = data.submissions.filter(
-    (sub: Submission) =>
-      sub.suggestedScore !== null &&
-      !rubricsMatch(parseRubricSnapshot(sub.rubricSnapshot), rubricConfig)
+    (sub: Submission) => suggestionStaleness(sub, rubricConfig).length > 0
   )
 
   return (
@@ -198,6 +197,8 @@ export default function ReportPage() {
           </CardContent>
         </Card>
 
+        <ClassPatterns submissions={data.submissions} className="mb-6 print:shadow-none print:border" />
+
         {/* Rubric Used */}
         <Card className="mb-6 print:shadow-none print:border">
           <CardHeader className="pb-2">
@@ -207,8 +208,8 @@ export default function ReportPage() {
             {staleSubmissions.length > 0 && (
               <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 print:border-gray-300 print:bg-gray-50">
                 {staleSubmissions.length} of {data.submissions.length} submissions were
-                suggested under different weights than those shown here. Rescore the
-                assignment to bring every suggestion onto this rubric.
+                suggested under different weights than those shown here, or by older
+                scoring rules. Rescore the assignment to bring every suggestion up to date.
               </div>
             )}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">

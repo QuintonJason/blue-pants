@@ -4,6 +4,7 @@ import { assignments, submissions } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { validateRubricConfig } from '@/lib/scorer/rubric'
 import { validateCurriculumScope } from '@/lib/analyzer/curriculum-scope'
+import { backupQuietly } from '@/lib/db/backup'
 
 // GET - Get single assignment with submission count
 export async function GET(
@@ -141,6 +142,8 @@ export async function DELETE(
       )
     }
 
+    // Deleting an assignment takes its submissions and their grades with it.
+    await backupQuietly('before-delete')
     await db.delete(assignments).where(eq(assignments.id, assignmentId))
 
     return NextResponse.json({ success: true })

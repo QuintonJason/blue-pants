@@ -4,7 +4,7 @@ import { submissions, assignments } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { smartParse } from '@/lib/parser/chatgpt'
 import { DEFAULT_RUBRIC_CONFIG } from '@/lib/scorer/rubric'
-import { scoreSubmission } from '@/lib/scorer/pipeline'
+import { scoreSubmission, TRANSCRIPT_SCORER_VERSION } from '@/lib/scorer/pipeline'
 import type { RubricConfig } from '@/lib/db/schema'
 
 interface SubmissionInput {
@@ -110,6 +110,8 @@ export async function POST(
           suggestedScore: scored.suggestedScore,
           suggestedDimensionScores: JSON.stringify(scored.dimensionScores),
           rubricSnapshot: JSON.stringify(rubricConfig),
+          transcriptScorerVersion: TRANSCRIPT_SCORER_VERSION,
+          aiUseFindings: JSON.stringify(scored.aiUseFindings),
         }).returning()
 
         results.push({

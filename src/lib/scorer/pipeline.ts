@@ -7,13 +7,22 @@
  */
 
 import type { CodeBlock, ParsedChat } from '../parser/chatgpt'
-import type { ComputedMetrics, CodeSmellSignalResult, CurriculumScopeFlag, DimensionScores, RubricConfig } from '../db/schema'
+import type { ComputedMetrics, CodeSmellSignalResult, CurriculumScopeFlag, DimensionScores, RubricConfig, Submission } from '../db/schema'
 import { computeAggregateMetrics } from '../analyzer/metrics'
 import { getHighlightSummary, highlightChat } from '../analyzer/highlighter'
 import { analyzeModifications, findStudentFirstShingles, getCodeSummary } from '../analyzer/code-extractor'
 import { scoreAiLikelihood, CODE_SMELL_SCORER_VERSION } from '../analyzer/code-smell'
 import { checkCurriculumScope, validateCurriculumScope } from '../analyzer/curriculum-scope'
-import { calculateScores } from './rubric'
+import { calculateScores, parseRubricSnapshot, rubricsMatch } from './rubric'
+import { buildAiUseFeedback, summarizeFindings, type AiUseFindings } from '../analyzer/feedback'
+
+/**
+ * Bump whenever a change to the parser, analyzers or rubric logic can move a
+ * transcript's suggested score. Stored with each suggestion so a stale one is
+ * flagged for rescoring instead of silently disagreeing with live analysis (the
+ * AI-use summary is computed fresh on every view).
+ */
+export const TRANSCRIPT_SCORER_VERSION = '2026-10-17.2'
 
 export interface ScoredSubmission {
   metrics: ComputedMetrics
@@ -21,6 +30,8 @@ export interface ScoredSubmission {
   suggestedScore: number
   /** Assistant code blocks, stored so the diff view does not re-derive them. */
   aiCodeSnippets: CodeBlock[]
+  /** What the AI-use summary found, for class-wide views. */
+  aiUseFindings: AiUseFindings
 }
 
 /**
@@ -57,6 +68,7 @@ export function scoreSubmission(
     dimensionScores,
     suggestedScore: totalScore,
     aiCodeSnippets: codeSummaries.flatMap(summary => summary.codeBlocks),
+    aiUseFindings: summarizeFindings(buildAiUseFeedback(parsedChats, finalCode ?? null)),
   }
 }
 
@@ -74,6 +86,8 @@ export interface RescoreUpdate {
   aiCodeSnippets: string
   /** The rubric this score was computed with, so it stays explainable later. */
   rubricSnapshot: string
+  transcriptScorerVersion: string
+  aiUseFindings: string
 }
 
 /**
@@ -101,7 +115,23 @@ export function rescoreStoredSubmission(
     suggestedScore: scored.suggestedScore,
     aiCodeSnippets: JSON.stringify(scored.aiCodeSnippets),
     rubricSnapshot: JSON.stringify(rubricConfig),
+    transcriptScorerVersion: TRANSCRIPT_SCORER_VERSION,
+    aiUseFindings: JSON.stringify(scored.aiUseFindings),
   }
+}
+
+/** Why a stored suggestion no longer matches what scoring it now would give. */
+export type StaleReason = 'rubric' | 'rules'
+
+export function suggestionStaleness(
+  submission: Pick<Submission, 'submissionMode' | 'suggestedScore' | 'rubricSnapshot' | 'transcriptScorerVersion'>,
+  rubricConfig: RubricConfig
+): StaleReason[] {
+  if (submission.submissionMode === 'code_only' || submission.suggestedScore === null) return []
+  const reasons: StaleReason[] = []
+  if (!rubricsMatch(parseRubricSnapshot(submission.rubricSnapshot), rubricConfig)) reasons.push('rubric')
+  if (submission.transcriptScorerVersion !== TRANSCRIPT_SCORER_VERSION) reasons.push('rules')
+  return reasons
 }
 
 /**

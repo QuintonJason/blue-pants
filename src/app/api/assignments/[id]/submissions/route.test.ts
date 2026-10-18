@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { GET, POST } from './route'
+import { TRANSCRIPT_SCORER_VERSION } from '@/lib/scorer/pipeline'
 import { resetDb, seedAssignment, seedCodeOnlySubmission, jsonRequest, routeParams, simpleChatExport } from '@/test/route-helpers'
 
 beforeEach(resetDb)
@@ -53,6 +54,7 @@ describe('POST /api/assignments/[id]/submissions', () => {
       expect(body.suggestedScore).toBeGreaterThan(0)
       expect(JSON.parse(body.computedMetrics).userMessages).toBe(2)
       expect(body.aiLikelihoodScore).toBeNull()
+      expect(body.transcriptScorerVersion).toBe(TRANSCRIPT_SCORER_VERSION)
     })
 
     it('400s when no chat export could be parsed', async () => {

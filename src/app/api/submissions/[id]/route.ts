@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { submissions } from '@/lib/db/schema'
+import { assignments, submissions, type RubricConfig } from '@/lib/db/schema'
+import { appendGradeRecord, buildGradeRecord, parseGradeRecords } from '@/lib/scorer/grade-record'
+import { evidenceFingerprint, withEvidenceCheck } from '@/lib/scorer/evidence'
+import { backupQuietly } from '@/lib/db/backup'
 import { eq } from 'drizzle-orm'
 
 // GET - Get single submission
@@ -32,7 +35,7 @@ export async function GET(
       )
     }
 
-    return NextResponse.json(submission[0])
+    return NextResponse.json(withEvidenceCheck(submission[0]))
   } catch (error) {
     console.error('Error fetching submission:', error)
     return NextResponse.json(
@@ -61,11 +64,13 @@ export async function PUT(
     const body = await request.json()
     const { finalScore, dimensionScores, teacherNotes, selfReflection, transcriptStatus } = body
 
+    const updateData: Record<string, unknown> = {}
+
     // A code_only submission has no rubric backing a grade — require the teacher to
     // write down why, so a grade can never be entered with zero paper trail.
     if (finalScore !== undefined) {
       const existing = await db
-        .select({ submissionMode: submissions.submissionMode, teacherNotes: submissions.teacherNotes })
+        .select()
         .from(submissions)
         .where(eq(submissions.id, submissionId))
         .limit(1)
@@ -81,9 +86,30 @@ export async function PUT(
           { status: 400 }
         )
       }
+
+      // Record what this grade was given on, built here from the stored transcript
+      // rather than taken from the browser, so the record is what the rules produced.
+      const assignment = await db
+        .select({ rubricConfig: assignments.rubricConfig })
+        .from(assignments)
+        .where(eq(assignments.id, existing[0].assignmentId))
+        .limit(1)
+      const rubric: RubricConfig = JSON.parse(assignment[0].rubricConfig)
+      const record = buildGradeRecord(existing[0], rubric, {
+        finalScore,
+        dimensionScores:
+          dimensionScores !== undefined
+            ? dimensionScores
+            : existing[0].dimensionScores
+              ? JSON.parse(existing[0].dimensionScores)
+              : null,
+        teacherNotes: effectiveNotes ?? null,
+      }, evidenceFingerprint(existing[0]))
+      updateData.gradeRecords = JSON.stringify(
+        appendGradeRecord(parseGradeRecords(existing[0].gradeRecords), record)
+      )
     }
 
-    const updateData: Record<string, unknown> = {}
     if (finalScore !== undefined) updateData.finalScore = finalScore
     if (dimensionScores !== undefined) updateData.dimensionScores = JSON.stringify(dimensionScores)
     if (teacherNotes !== undefined) updateData.teacherNotes = teacherNotes
@@ -107,7 +133,10 @@ export async function PUT(
       )
     }
 
-    return NextResponse.json(result[0])
+    // Grades are what this database exists to keep: make sure they're in a recent copy.
+    if (finalScore !== undefined) await backupQuietly('if-due')
+
+    return NextResponse.json(withEvidenceCheck(result[0]))
   } catch (error) {
     console.error('Error updating submission:', error)
     return NextResponse.json(
@@ -133,6 +162,7 @@ export async function DELETE(
       )
     }
 
+    await backupQuietly('before-delete')
     await db.delete(submissions).where(eq(submissions.id, submissionId))
 
     return NextResponse.json({ success: true })

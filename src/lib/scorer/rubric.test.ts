@@ -6,6 +6,8 @@ import {
   rubricsMatch,
   DEFAULT_RUBRIC_CONFIG,
   calculateDimensionScores,
+  interpretScore,
+  weakDimensions,
 } from './rubric'
 import type { DimensionScores, RubricConfig } from '../db/schema'
 
@@ -156,5 +158,29 @@ describe('independenceShown', () => {
     expect(independence(undefined)).toBe(95)
     expect(independence(2)).toBe(85)
     expect(independence(20)).toBe(65)
+  })
+})
+
+describe('interpretScore', () => {
+  it('describes the process without claiming understanding the total cannot show', () => {
+    for (const score of [95, 77, 65, 45, 10]) {
+      expect(interpretScore(score).description).not.toMatch(/understanding/i)
+    }
+  })
+})
+
+describe('weakDimensions', () => {
+  const strong = { ...evenScores, problemArticulation: 80, iterationQuality: 85, criticalEvaluation: 85, codeReviewEngagement: 80, debuggingProcess: 90 }
+
+  it('names dimensions a high total hides, weakest first', () => {
+    expect(weakDimensions({ ...strong, independenceShown: 20, debuggingProcess: 40 }, DEFAULT_RUBRIC_CONFIG)).toEqual([
+      'independenceShown',
+      'debuggingProcess',
+    ])
+  })
+
+  it('ignores dimensions the rubric gives no weight', () => {
+    const unweighted = { ...DEFAULT_RUBRIC_CONFIG, independenceShown: 0 }
+    expect(weakDimensions({ ...strong, independenceShown: 20 }, unweighted)).toEqual([])
   })
 })
