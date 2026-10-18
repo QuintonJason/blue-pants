@@ -21,7 +21,8 @@ import { applyIntentOverrides, type IntentOverrides } from '../analyzer/intent-o
  * Bump whenever a change to the parser, analyzers or rubric logic can move a
  * transcript's suggested score. Stored with each suggestion so a stale one is
  * flagged for rescoring instead of silently disagreeing with live analysis (the
- * AI-use summary is computed fresh on every view).
+ * AI-use summary is computed fresh on every view). score-snapshot.test.ts fails
+ * if scores move without a bump.
  */
 export const TRANSCRIPT_SCORER_VERSION = '2026-10-17.2'
 

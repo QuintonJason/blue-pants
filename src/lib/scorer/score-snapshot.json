@@ -1,0 +1,125 @@
+{
+  "scorerVersion": "2026-10-17.2",
+  "scores": {
+    "docs sample": {
+      "suggestedScore": 78,
+      "dimensionScores": {
+        "problemArticulation": 60,
+        "iterationQuality": 85,
+        "criticalEvaluation": 85,
+        "codeReviewEngagement": 70,
+        "debuggingProcess": 80,
+        "independenceShown": 95
+      },
+      "delegationCount": 0,
+      "offTopicCount": 0,
+      "aiUseFindings": {
+        "strengths": [
+          {
+            "id": "asks-questions",
+            "count": 4
+          },
+          {
+            "id": "describes-bugs",
+            "count": 2
+          },
+          {
+            "id": "asks-for-review",
+            "count": 2
+          },
+          {
+            "id": "shares-code",
+            "count": 3
+          },
+          {
+            "id": "mostly-own-code",
+            "count": 11
+          }
+        ],
+        "improvements": []
+      }
+    },
+    "docs test": {
+      "suggestedScore": 72,
+      "dimensionScores": {
+        "problemArticulation": 60,
+        "iterationQuality": 85,
+        "criticalEvaluation": 85,
+        "codeReviewEngagement": 50,
+        "debuggingProcess": 65,
+        "independenceShown": 95
+      },
+      "delegationCount": 0,
+      "offTopicCount": 0,
+      "aiUseFindings": {
+        "strengths": [
+          {
+            "id": "asks-questions",
+            "count": 4
+          },
+          {
+            "id": "asks-for-review",
+            "count": 1
+          },
+          {
+            "id": "mostly-own-code",
+            "count": 39
+          }
+        ],
+        "improvements": []
+      }
+    },
+    "hands off the work": {
+      "suggestedScore": 29,
+      "dimensionScores": {
+        "problemArticulation": 40,
+        "iterationQuality": 45,
+        "criticalEvaluation": 20,
+        "codeReviewEngagement": 10,
+        "debuggingProcess": 50,
+        "independenceShown": 10
+      },
+      "delegationCount": 2,
+      "offTopicCount": 1,
+      "aiUseFindings": {
+        "strengths": [],
+        "improvements": [
+          {
+            "id": "hands-off-features",
+            "count": 2
+          },
+          {
+            "id": "mostly-ai-code",
+            "count": 100
+          }
+        ]
+      }
+    },
+    "asks and debugs": {
+      "suggestedScore": 67,
+      "dimensionScores": {
+        "problemArticulation": 50,
+        "iterationQuality": 80,
+        "criticalEvaluation": 85,
+        "codeReviewEngagement": 50,
+        "debuggingProcess": 65,
+        "independenceShown": 70
+      },
+      "delegationCount": 0,
+      "offTopicCount": 0,
+      "aiUseFindings": {
+        "strengths": [
+          {
+            "id": "asks-questions",
+            "count": 3
+          },
+          {
+            "id": "asks-for-review",
+            "count": 1
+          }
+        ],
+        "improvements": []
+      }
+    }
+  }
+}

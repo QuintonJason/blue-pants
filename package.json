@@ -10,6 +10,7 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:update-scores": "UPDATE_SCORE_SNAPSHOT=1 vitest run src/lib/scorer/score-snapshot.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/backup-db.js before-schema-update && node scripts/migrate-db.js",
     "db:studio": "drizzle-kit studio",
