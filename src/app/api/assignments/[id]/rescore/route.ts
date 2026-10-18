@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { parseIntentOverrides } from '@/lib/analyzer/intent-overrides'
 import { db } from '@/lib/db'
 import { assignments, submissions } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -85,7 +86,8 @@ export async function POST(
         const update = rescoreStoredSubmission(
           submission.chatExports,
           submission.finalCode,
-          rubricConfig
+          rubricConfig,
+          parseIntentOverrides(submission.intentOverrides)
         )
         await db.update(submissions).set(update).where(eq(submissions.id, submission.id))
         results.push({

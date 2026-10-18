@@ -16,6 +16,7 @@ import type { ComputedMetrics, DimensionScores, RubricConfig, Submission } from 
 import type { ParsedChat } from '../parser/chatgpt'
 import { buildAiUseFeedback, type AiUseFeedback } from '../analyzer/feedback'
 import { computeAggregateMetrics } from '../analyzer/metrics'
+import { applyIntentOverrides, parseIntentOverrides, type IntentOverrides } from '../analyzer/intent-overrides'
 import { suggestionStaleness, TRANSCRIPT_SCORER_VERSION, type StaleReason } from './pipeline'
 
 /** SHA-256 of the stored transcript and code, exactly as stored; null when absent. */
@@ -44,6 +45,8 @@ export interface GradeRecord {
   aiLikelihoodScorerVersion: string | null
   /** Absent on records made before fingerprints were taken. */
   evidence?: EvidenceFingerprint
+  /** The teacher's rulings on flagged messages, which the summary above reflects. */
+  intentOverrides?: IntentOverrides
 }
 
 export interface GradeInput {
@@ -59,8 +62,11 @@ export function buildGradeRecord(
   evidence: EvidenceFingerprint,
   now: Date = new Date()
 ): GradeRecord {
-  const chats: ParsedChat[] =
-    submission.submissionMode === 'chat' ? parseJson(submission.chatExports, []) : []
+  const intentOverrides = parseIntentOverrides(submission.intentOverrides)
+  const chats: ParsedChat[] = applyIntentOverrides(
+    submission.submissionMode === 'chat' ? parseJson(submission.chatExports, []) : [],
+    intentOverrides
+  )
   const hasTranscript = chats.length > 0
 
   return {
@@ -78,6 +84,7 @@ export function buildGradeRecord(
     aiLikelihoodScore: submission.aiLikelihoodScore,
     aiLikelihoodScorerVersion: submission.aiLikelihoodScorerVersion,
     evidence,
+    intentOverrides,
   }
 }
 
@@ -95,7 +102,8 @@ export function appendGradeRecord(existing: GradeRecord[], record: GradeRecord):
     latest.scorerVersion === record.scorerVersion &&
     JSON.stringify(latest.dimensionScores) === JSON.stringify(record.dimensionScores) &&
     JSON.stringify(latest.rubric) === JSON.stringify(record.rubric) &&
-    JSON.stringify(latest.evidence) === JSON.stringify(record.evidence)
+    JSON.stringify(latest.evidence) === JSON.stringify(record.evidence) &&
+    JSON.stringify(latest.intentOverrides ?? {}) === JSON.stringify(record.intentOverrides ?? {})
   ) {
     return existing
   }

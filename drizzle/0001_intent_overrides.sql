@@ -1,0 +1,1 @@
+ALTER TABLE `submissions` ADD `intent_overrides` text;

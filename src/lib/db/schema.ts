@@ -109,6 +109,12 @@ export const submissions = sqliteTable('submissions', {
   // evidence it was given on, not whatever the current rules produce. Never
   // written by a rescore.
   gradeRecords: text('grade_records'),
+
+  // JSON IntentOverrides: the teacher's rulings on flagged messages, keyed by
+  // message anchor ({"chat-0-message-4": {"delegation": false}}). Applied over
+  // the detected intent wherever the transcript is analyzed; the stored
+  // transcript itself is never changed.
+  intentOverrides: text('intent_overrides'),
 })
 
 // Types for TypeScript

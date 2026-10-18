@@ -17,6 +17,8 @@ import { AiLikelihoodPanel } from '@/components/ai-likelihood-panel'
 import { CurriculumScopePanel } from '@/components/curriculum-scope-panel'
 import { TranscriptRequestPanel } from '@/components/transcript-request-panel'
 import { ManualGradePanel } from '@/components/manual-grade-panel'
+import { FlaggedMessages } from '@/components/flagged-messages'
+import { applyIntentOverrides, parseIntentOverrides, type IntentOverrides } from '@/lib/analyzer/intent-overrides'
 import {
   ArrowLeft,
   MessageSquare,
@@ -48,6 +50,10 @@ import {
 } from '@/components/ui/dialog'
 
 interface SubmissionData extends Submission {
+  /** The transcript as stored. */
+  rawChats: ParsedChat[]
+  parsedIntentOverrides: IntentOverrides
+  /** The transcript with the teacher's rulings applied: what everything on the page analyzes. */
   parsedChats: ParsedChat[]
   parsedDimensionScores: DimensionScores | null
   parsedSuggestedDimensionScores: DimensionScores | null
@@ -57,13 +63,21 @@ interface SubmissionData extends Submission {
   parsedGradeRecords: GradeRecord[]
   /** From the API: the transcript or code differs from what the current grade was given on. */
   evidenceChangedSinceGrade?: boolean
+  /** From the API: rulings on flagged messages changed after the current grade was recorded. */
+  rulingsChangedSinceGrade?: boolean
 }
 
+type SubmissionResponse = Submission & { evidenceChangedSinceGrade?: boolean; rulingsChangedSinceGrade?: boolean }
+
 /** Parse the JSON-string columns on a raw submission row into the shape the UI wants. */
-function hydrateSubmission(sub: Submission & { evidenceChangedSinceGrade?: boolean }): SubmissionData {
+function hydrateSubmission(sub: SubmissionResponse): SubmissionData {
+  const rawChats: ParsedChat[] = JSON.parse(sub.chatExports || '[]')
+  const parsedIntentOverrides = parseIntentOverrides(sub.intentOverrides)
   return {
     ...sub,
-    parsedChats: JSON.parse(sub.chatExports || '[]'),
+    rawChats,
+    parsedIntentOverrides,
+    parsedChats: applyIntentOverrides(rawChats, parsedIntentOverrides),
     parsedDimensionScores: sub.dimensionScores ? JSON.parse(sub.dimensionScores) : null,
     parsedSuggestedDimensionScores: sub.suggestedDimensionScores
       ? JSON.parse(sub.suggestedDimensionScores)
@@ -172,6 +186,7 @@ export default function SubmissionReviewPage() {
       gradeRecords: updated.gradeRecords,
       parsedGradeRecords: parseGradeRecords(updated.gradeRecords),
       evidenceChangedSinceGrade: updated.evidenceChangedSinceGrade,
+      rulingsChangedSinceGrade: updated.rulingsChangedSinceGrade,
     } : null)
   }
 
@@ -545,6 +560,18 @@ export default function SubmissionReviewPage() {
               </div>
             )}
 
+            {submission.rulingsChangedSinceGrade && !submission.evidenceChangedSinceGrade && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>
+                    You&apos;ve changed rulings on flagged messages since this grade was saved. Save the
+                    grade again to record it with them.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {isCodeOnly ? (
               <>
                 <AiLikelihoodPanel
@@ -605,6 +632,14 @@ export default function SubmissionReviewPage() {
                   rubricConfig={rubricConfig}
                   teacherNotes={submission.teacherNotes}
                   onSave={handleSave}
+                  className="border-0 shadow-lg"
+                />
+                <FlaggedMessages
+                  submissionId={submission.id}
+                  chats={submission.rawChats}
+                  overrides={submission.parsedIntentOverrides}
+                  onUpdated={handleTranscriptUpdated}
+                  onQuoteClick={showInChat}
                   className="border-0 shadow-lg"
                 />
               </>
