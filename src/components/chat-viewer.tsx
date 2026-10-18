@@ -1,16 +1,26 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { highlightChat, getHighlightClass, getHighlightBadge, type HighlightedMessage } from '@/lib/analyzer/highlighter'
+import { highlightChat, getHighlightClass, getHighlightBadge, messageAnchor, type HighlightedMessage } from '@/lib/analyzer/highlighter'
 import { assistantCodeBlocks, type ParsedChat } from '@/lib/parser/chatgpt'
 import { User, Bot, MessageSquare } from 'lucide-react'
 
+/** A request to scroll to a message; `nonce` lets the same message be re-requested. */
+export interface ChatFocus {
+  anchor: string
+  nonce: number
+}
+
 interface ChatViewerProps {
   chats: ParsedChat[]
+  focus?: ChatFocus | null
   className?: string
 }
+
+/** How long a jumped-to message stays outlined. */
+const FOCUS_HIGHLIGHT_MS = 2500
 
 function CodeBlock({ code, language }: { code: string; language: string }) {
   return (
@@ -70,16 +80,17 @@ function MessageContent({ content, codeBlocks }: { content: string; codeBlocks: 
   )
 }
 
-function Message({ message }: { message: HighlightedMessage }) {
+function Message({ message, anchor, focused }: { message: HighlightedMessage; anchor: string; focused: boolean }) {
   const isUser = message.role === 'user'
   const highlightClass = getHighlightClass(message.highlightType)
   const badge = getHighlightBadge(message.highlightType)
 
   return (
-    <div className={cn(
-      'chat-message p-4 rounded-lg',
+    <div id={anchor} className={cn(
+      'chat-message p-4 rounded-lg scroll-mt-24 transition-shadow',
       isUser ? 'bg-violet-50 border border-violet-200' : 'bg-white border border-slate-200',
-      highlightClass && `${highlightClass}`
+      highlightClass && `${highlightClass}`,
+      focused && 'ring-2 ring-violet-500 ring-offset-2'
     )}>
       <div className="flex items-start gap-3">
         <div className={cn(
@@ -111,13 +122,28 @@ function Message({ message }: { message: HighlightedMessage }) {
   )
 }
 
-export function ChatViewer({ chats, className }: ChatViewerProps) {
+export function ChatViewer({ chats, focus, className }: ChatViewerProps) {
   const highlightedChats = useMemo(() => {
     return chats.map(chat => ({
       ...chat,
       messages: highlightChat(chat),
     }))
   }, [chats])
+
+  const [focused, setFocused] = useState<string | null>(null)
+  useEffect(() => {
+    if (!focus) return
+    // The tab may have only just mounted this list; scroll once it has painted.
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(focus.anchor)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setFocused(focus.anchor)
+    })
+    const clear = setTimeout(() => setFocused(null), FOCUS_HIGHLIGHT_MS)
+    return () => {
+      cancelAnimationFrame(frame)
+      clearTimeout(clear)
+    }
+  }, [focus])
 
   if (chats.length === 0) {
     return (
@@ -141,9 +167,17 @@ export function ChatViewer({ chats, className }: ChatViewerProps) {
             </div>
           )}
           <div className="space-y-3">
-            {chat.messages.map((message, msgIndex) => (
-              <Message key={`${chat.id}-${msgIndex}`} message={message} />
-            ))}
+            {chat.messages.map((message, msgIndex) => {
+              const anchor = messageAnchor(chatIndex, msgIndex)
+              return (
+                <Message
+                  key={`${chat.id}-${msgIndex}`}
+                  message={message}
+                  anchor={anchor}
+                  focused={focused === anchor}
+                />
+              )
+            })}
           </div>
         </div>
       ))}

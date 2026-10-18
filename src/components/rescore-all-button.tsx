@@ -8,6 +8,8 @@ import { Loader2, RotateCcw } from 'lucide-react'
 interface RescoreAllButtonProps {
   assignmentId: number
   submissionCount: number
+  /** Suggestions computed under other weights or older scoring rules. */
+  staleCount?: number
 }
 
 /**
@@ -16,7 +18,7 @@ interface RescoreAllButtonProps {
  * Grades the teacher entered by hand are not affected — only the suggested score
  * and the metrics behind it.
  */
-export function RescoreAllButton({ assignmentId, submissionCount }: RescoreAllButtonProps) {
+export function RescoreAllButton({ assignmentId, submissionCount, staleCount = 0 }: RescoreAllButtonProps) {
   const router = useRouter()
   const [running, setRunning] = useState(false)
   const [note, setNote] = useState('')
@@ -46,7 +48,11 @@ export function RescoreAllButton({ assignmentId, submissionCount }: RescoreAllBu
 
   return (
     <div className="flex items-center gap-2">
-      {note && <span className="text-sm text-muted-foreground">{note}</span>}
+      {note ? (
+        <span className="text-sm text-muted-foreground">{note}</span>
+      ) : (
+        staleCount > 0 && <span className="text-sm text-amber-700">{staleCount} outdated</span>
+      )}
       <Button
         variant="outline"
         onClick={handleClick}

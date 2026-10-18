@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { rescoreStoredSubmission, scoreSubmission } from './pipeline'
+import { rescoreStoredSubmission, scoreSubmission, suggestionStaleness, TRANSCRIPT_SCORER_VERSION } from './pipeline'
 import { DEFAULT_RUBRIC_CONFIG } from './rubric'
 import { chat, message } from '../analyzer/fixtures'
 
@@ -56,11 +56,18 @@ describe('rescoreStoredSubmission', () => {
       'rubricSnapshot',
       'suggestedDimensionScores',
       'suggestedScore',
+      'transcriptScorerVersion',
     ])
     // dimensionScores holds the teacher's adjusted sliders, so it must not appear.
     for (const forbidden of ['finalScore', 'dimensionScores', 'teacherNotes', 'selfReflection', 'studentName', 'chatExports', 'finalCode']) {
       expect(update).not.toHaveProperty(forbidden)
     }
+  })
+
+  it('records the scoring rules it used', () => {
+    expect(rescoreStoredSubmission(stored, AI_CODE, DEFAULT_RUBRIC_CONFIG).transcriptScorerVersion).toBe(
+      TRANSCRIPT_SCORER_VERSION
+    )
   })
 
   it('agrees with a fresh score of the same transcripts', () => {
@@ -102,5 +109,33 @@ describe('rescoreStoredSubmission', () => {
     const first = rescoreStoredSubmission(stored, AI_CODE, DEFAULT_RUBRIC_CONFIG)
     const second = rescoreStoredSubmission(stored, AI_CODE, DEFAULT_RUBRIC_CONFIG)
     expect(second).toEqual(first)
+  })
+})
+
+describe('suggestionStaleness', () => {
+  const current = {
+    submissionMode: 'chat',
+    suggestedScore: 70,
+    rubricSnapshot: JSON.stringify(DEFAULT_RUBRIC_CONFIG),
+    transcriptScorerVersion: TRANSCRIPT_SCORER_VERSION,
+  }
+
+  it('is empty for a suggestion made under the current rubric and rules', () => {
+    expect(suggestionStaleness(current, DEFAULT_RUBRIC_CONFIG)).toEqual([])
+  })
+
+  it('flags suggestions from older rules, including ones scored before versions were recorded', () => {
+    expect(suggestionStaleness({ ...current, transcriptScorerVersion: '2026-01-01.1' }, DEFAULT_RUBRIC_CONFIG)).toEqual(['rules'])
+    expect(suggestionStaleness({ ...current, transcriptScorerVersion: null }, DEFAULT_RUBRIC_CONFIG)).toEqual(['rules'])
+  })
+
+  it('flags a changed rubric', () => {
+    const reweighted = { ...DEFAULT_RUBRIC_CONFIG, independenceShown: 40 }
+    expect(suggestionStaleness(current, reweighted)).toEqual(['rubric'])
+  })
+
+  it('ignores code-only and unscored submissions', () => {
+    expect(suggestionStaleness({ ...current, submissionMode: 'code_only', transcriptScorerVersion: null }, DEFAULT_RUBRIC_CONFIG)).toEqual([])
+    expect(suggestionStaleness({ ...current, suggestedScore: null, transcriptScorerVersion: null }, DEFAULT_RUBRIC_CONFIG)).toEqual([])
   })
 })

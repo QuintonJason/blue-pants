@@ -91,6 +91,12 @@ export const submissions = sqliteTable('submissions', {
   // Null if the assignment has no curriculumScope configured. Informational for
   // the integrity track only, like aiLikelihoodScore — never the content grade.
   curriculumScopeFlags: text('curriculum_scope_flags'),
+
+  // The TRANSCRIPT_SCORER_VERSION the suggested score was computed with. Null for
+  // submissions scored before it was recorded. When the analyzers change, older
+  // suggestions are flagged rather than shown beside feedback computed by the new
+  // rules (mirrors aiLikelihoodScorerVersion).
+  transcriptScorerVersion: text('transcript_scorer_version'),
 })
 
 // Types for TypeScript

@@ -63,6 +63,11 @@ export function getHighlightType(message: ChatMessage): { type: HighlightType; r
   return { type: null }
 }
 
+/** DOM id for a message in the chat viewer, so other panels can link to it. */
+export function messageAnchor(chatIndex: number, messageIndex: number): string {
+  return `chat-${chatIndex}-message-${messageIndex}`
+}
+
 /**
  * Add highlight information to all messages in a chat
  */

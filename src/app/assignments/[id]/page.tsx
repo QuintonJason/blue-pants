@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import type { RubricConfig } from '@/lib/db/schema'
+import { suggestionStaleness } from '@/lib/scorer/pipeline'
 
 async function getAssignment(id: number) {
   const assignment = await db
@@ -55,6 +56,7 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
 
   const rubricConfig: RubricConfig = JSON.parse(assignment.rubricConfig)
   const gradedCount = assignment.submissions.filter(s => s.finalScore !== null).length
+  const staleCount = assignment.submissions.filter(s => suggestionStaleness(s, rubricConfig).length > 0).length
   const pendingCount = assignment.submissions.length - gradedCount
   const avgScore = assignment.submissions.length > 0
     ? Math.round(assignment.submissions.reduce((sum, s) => sum + (s.finalScore ?? s.suggestedScore ?? 0), 0) / assignment.submissions.length)
@@ -179,6 +181,7 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
                   <RescoreAllButton
                     assignmentId={assignmentId}
                     submissionCount={assignment.submissions.length}
+                    staleCount={staleCount}
                   />
                   <Link href={`/assignments/${assignmentId}/batch-import`}>
                     <Button size="sm" variant="outline">
