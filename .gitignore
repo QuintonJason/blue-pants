@@ -39,8 +39,6 @@ next-env.d.ts
 *.db
 *.db-journal
 
-# Drizzle
-/drizzle/
 
 # IDE
 .idea/

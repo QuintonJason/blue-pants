@@ -1,4 +1,4 @@
-// Provisions a disposable SQLite database for integration tests, via the same `drizzle-kit push` mechanism `npm run dev` uses (see TRANSCRIPT_DB_FILE in vitest.config.ts).
+// Provisions a disposable SQLite database for integration tests by running the checked-in migrations from scratch, the same script `npm run dev` uses (see TRANSCRIPT_DB_FILE in vitest.config.ts), so every test run also proves the migrations build the schema.
 import { execFileSync } from 'child_process'
 import { existsSync, mkdirSync, rmSync } from 'fs'
 import path from 'path'
@@ -9,18 +9,10 @@ export default function setup() {
   mkdirSync(path.dirname(TEST_DB_PATH), { recursive: true })
   rmSync(TEST_DB_PATH, { force: true })
 
-  execFileSync(
-    'npx',
-    [
-      'drizzle-kit',
-      'push',
-      '--force',
-      '--dialect', 'sqlite',
-      '--schema', './src/lib/db/schema.ts',
-      '--url', TEST_DB_PATH,
-    ],
-    { stdio: 'inherit' }
-  )
+  execFileSync('node', ['scripts/migrate-db.js'], {
+    stdio: 'inherit',
+    env: { ...process.env, TRANSCRIPT_DB_FILE: path.basename(TEST_DB_PATH) },
+  })
 
   return () => {
     if (existsSync(TEST_DB_PATH)) rmSync(TEST_DB_PATH, { force: true })

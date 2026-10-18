@@ -69,12 +69,36 @@ npm install
 cp .env.example .env.local
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"   # paste into .env.local
 
-# Start the development server (syncs the database schema first)
+# Start the development server (backs up the database and applies migrations first)
 npm run dev
 ```
 
-`npm run dev` runs `drizzle-kit push` beforehand, so `src/lib/db/schema.ts` is the
-single source of truth for the database schema. Run `npm test` for the test suite.
+`npm run dev` backs up the database to `data/backups` and then applies any new
+migrations from `drizzle/`. Run `npm test` for the test suite.
+
+### Changing the database schema
+
+The database holds grades, so its schema only changes through migrations that are
+written down and reviewed first:
+
+1. Edit `src/lib/db/schema.ts`. SQLite can only add columns at the end of a table.
+2. `npm run db:generate -- --name <what-changed>` writes the SQL to `drizzle/`. Read it:
+   a migration that drops or rebuilds a table loses data.
+3. `npm run db:migrate` backs up the database and applies it. Commit the schema
+   change and the migration together.
+
+The app reads every column in `schema.ts`, so a running app fails until the
+migration is applied: do steps 2 and 3 straight after step 1. Don't use
+`drizzle-kit push`, which changes the database without a migration.
+
+### Backups
+
+Copies of the database are kept in `data/backups`: before every migration, before
+deleting a submission or assignment, and daily while grades are being saved.
+`npm run db:backup` takes one on demand. To keep copies off this computer, set
+`TRANSCRIPT_BACKUP_DIR` in `.env.local` to a synced folder (iCloud Drive, Dropbox,
+a school drive). To restore, stop the app and copy a backup over
+`data/transcript.db`.
 
 ### First Run
 
